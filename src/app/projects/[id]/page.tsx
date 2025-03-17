@@ -119,6 +119,25 @@ interface FileUpload {
   error?: string;
 }
 
+// Helper function to format AI resource cleanup status
+const getCleanupStatus = (cleanup: { assistantDeleted: boolean; vectorStoreDeleted: boolean }) => {
+  const statuses: string[] = [];
+  
+  if (cleanup.assistantDeleted) {
+    statuses.push("Assistant deleted");
+  }
+  
+  if (cleanup.vectorStoreDeleted) {
+    statuses.push("Vector store deleted");
+  }
+  
+  if (statuses.length === 0) {
+    return "No AI resources to clean up";
+  }
+  
+  return statuses.join(", ");
+};
+
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
@@ -130,11 +149,18 @@ export default function ProjectPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isManageTeamDialogOpen, setIsManageTeamDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleteInProgress, setIsDeleteInProgress] = useState(false);
+  const [deletionStage, setDeletionStage] = useState<string>("");
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCreatingAiResources, setIsCreatingAiResources] = useState(false);
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [deletionSteps, setDeletionSteps] = useState<Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'inProgress' | 'completed' | 'error';
+  }>>([]);
 
   // Add effect to scroll to ATLAS AI section when hash is present
   useEffect(() => {
@@ -292,6 +318,61 @@ export default function ProjectPage() {
   const handleDeleteProject = async () => {
     try {
       setIsDeleting(true);
+      setIsDeleteDialogOpen(false);
+      setIsDeleteInProgress(true);
+      
+      // Define the deletion steps based on project resources
+      const steps = [
+        { id: 'prepare', label: 'Preparing to delete project', status: 'pending' as const },
+      ];
+      
+      // Add assistant deletion step if needed
+      if (project?.assistantId) {
+        steps.push({ 
+          id: 'assistant', 
+          label: 'Deleting OpenAI assistant', 
+          status: 'pending' as const 
+        });
+      }
+      
+      // Add vector store deletion step if needed
+      if (project?.vectorStoreId) {
+        steps.push({ 
+          id: 'vectorStore', 
+          label: 'Deleting OpenAI vector store', 
+          status: 'pending' as const 
+        });
+      }
+      
+      // Add project deletion and redirect steps
+      steps.push(
+        { id: 'project', label: 'Deleting project data', status: 'pending' as const },
+        { id: 'redirect', label: 'Redirecting to projects page', status: 'pending' as const }
+      );
+      
+      setDeletionSteps(steps);
+      
+      // Start with the preparation step
+      updateDeletionStep('prepare', 'inProgress');
+      setDeletionStage("Preparing to delete project");
+      
+      // Mark preparation as completed and start assistant deletion if applicable
+      setTimeout(() => {
+        updateDeletionStep('prepare', 'completed');
+        
+        if (project?.assistantId) {
+          updateDeletionStep('assistant', 'inProgress');
+          setDeletionStage("Deleting OpenAI assistant");
+        } else if (project?.vectorStoreId) {
+          updateDeletionStep('vectorStore', 'inProgress');
+          setDeletionStage("Deleting OpenAI vector store");
+        } else {
+          updateDeletionStep('project', 'inProgress');
+          setDeletionStage("Deleting project data");
+        }
+      }, 500);
+      
+      // Make the delete API call
       const response = await fetch(`/api/projects/${params?.id}`, {
         method: "DELETE",
       });
@@ -301,17 +382,74 @@ export default function ProjectPage() {
         throw new Error(data.message || "Failed to delete project");
       }
 
-      toast.success("Project deleted successfully");
-      router.push("/projects");
+      const data = await response.json();
+      
+      // Log AI resources cleanup results for debugging
+      if (data.aiResourcesCleanup) {
+        console.log("AI resources cleanup results:", data.aiResourcesCleanup);
+      }
+
+      // Update deletion steps based on cleanup results
+      if (project?.assistantId) {
+        updateDeletionStep('assistant', data.aiResourcesCleanup?.assistantDeleted ? 'completed' : 'error');
+      }
+      
+      if (project?.vectorStoreId) {
+        updateDeletionStep('vectorStore', data.aiResourcesCleanup?.vectorStoreDeleted ? 'completed' : 'error');
+      }
+      
+      // Mark project deletion as completed
+      updateDeletionStep('project', 'completed');
+      setDeletionStage("Project deleted successfully");
+      
+      // Show success toast with cleanup status
+      toast.success("Project deleted successfully", {
+        description: data.aiResourcesCleanup ? 
+          `AI resources cleanup: ${getCleanupStatus(data.aiResourcesCleanup)}` : 
+          undefined
+      });
+      
+      // Start the redirect step
+      updateDeletionStep('redirect', 'inProgress');
+      setDeletionStage("Redirecting to projects page");
+      
+      // Add a small delay before redirect to ensure the user sees the completion message
+      setTimeout(() => {
+        updateDeletionStep('redirect', 'completed');
+        router.push("/projects");
+      }, 1500);
     } catch (err) {
       console.error("Error deleting project:", err);
+      
+      // Mark all in-progress steps as error
+      setDeletionSteps(steps => 
+        steps.map(step => 
+          step.status === 'inProgress' 
+            ? { ...step, status: 'error' as const } 
+            : step
+        )
+      );
+      
+      setDeletionStage("Error during deletion");
       toast.error("Error", {
         description: err instanceof Error ? err.message : "Failed to delete project"
       });
+      
+      // Don't close the dialog automatically on error so user can see what failed
     } finally {
       setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
     }
+  };
+
+  // Helper function to update a deletion step's status
+  const updateDeletionStep = (stepId: string, status: 'pending' | 'inProgress' | 'completed' | 'error') => {
+    setDeletionSteps(steps => 
+      steps.map(step => 
+        step.id === stepId 
+          ? { ...step, status } 
+          : step
+      )
+    );
   };
 
   const handleProjectUpdated = (updatedProject: Project) => {
@@ -441,6 +579,26 @@ export default function ProjectPage() {
                       This action cannot be undone. This will permanently delete the project
                       and all associated data.
                     </AlertDialogDescription>
+                    <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+                      <p className="font-medium mb-2">The following will be deleted:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Project data and settings</li>
+                        <li>Team member associations</li>
+                        <li>All chat history and interactions</li>
+                        {project.vectorStoreId && (
+                          <li>
+                            Associated vector store{" "}
+                            <span className="text-xs opacity-70">(used for file search)</span>
+                          </li>
+                        )}
+                        {project.assistantId && (
+                          <li>
+                            Associated assistant{" "}
+                            <span className="text-xs opacity-70">(AI chat capabilities)</span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -811,6 +969,79 @@ export default function ProjectPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Add the enhanced deletion progress dialog */}
+          <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
+            // Only allow closing this dialog when deletion is not in progress
+            if (!isDeleting) setIsDeleteInProgress(open);
+          }}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Deleting Project</DialogTitle>
+                <DialogDescription>
+                  Please wait while we delete the project and its associated resources.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+                    <p className="font-medium">{deletionStage}</p>
+                  </div>
+                  
+                  {/* Step-by-step progress */}
+                  <div className="space-y-3">
+                    {deletionSteps.map(step => (
+                      <div key={step.id} className="flex items-center gap-3">
+                        {step.status === 'pending' && (
+                          <div className="h-5 w-5 rounded-full border border-muted-foreground/30" />
+                        )}
+                        {step.status === 'inProgress' && (
+                          <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+                        )}
+                        {step.status === 'completed' && (
+                          <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        )}
+                        {step.status === 'error' && (
+                          <div className="h-5 w-5 rounded-full bg-destructive flex items-center justify-center">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9 3L3 9M3 3L9 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        )}
+                        <p className={`text-sm ${
+                          step.status === 'completed' 
+                            ? 'text-muted-foreground line-through' 
+                            : step.status === 'error' 
+                              ? 'text-destructive' 
+                              : step.status === 'inProgress' 
+                                ? 'text-primary' 
+                                : 'text-muted-foreground'
+                        }`}>{step.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Deleting AI resources from OpenAI can take some time. Please do not close this window.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  onClick={() => setIsDeleteInProgress(false)}
+                  disabled={isDeleting}
+                  variant={isDeleting ? "outline" : "default"}
+                >
+                  {isDeleting ? "Deleting..." : "Close"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </MainLayout>
     </ProtectedRoute>

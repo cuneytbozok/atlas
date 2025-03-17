@@ -375,4 +375,94 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       throw error;
     }
   }
+
+  /**
+   * Deletes an assistant from OpenAI
+   * @param assistantId - ID of the assistant in our database
+   * @returns True if successful, false if already deleted or not found
+   */
+  static async deleteAssistant(assistantId: string): Promise<boolean> {
+    try {
+      // First get the assistant from our database to get the OpenAI ID
+      const assistant = await prisma.assistant.findUnique({
+        where: { id: assistantId }
+      });
+
+      if (!assistant?.openaiAssistantId) {
+        console.log(`Assistant ${assistantId} not found or missing OpenAI ID`);
+        return false;
+      }
+
+      const openaiAssistantId = assistant.openaiAssistantId;
+      console.log(`Deleting assistant ${assistantId} (OpenAI ID: ${openaiAssistantId})`);
+
+      // Get the OpenAI client
+      const client = await this.getClient();
+
+      // Delete the assistant in OpenAI
+      await client.beta.assistants.del(openaiAssistantId);
+      console.log(`Successfully deleted assistant in OpenAI: ${openaiAssistantId}`);
+
+      // Delete the assistant in our database
+      await prisma.assistant.delete({
+        where: { id: assistantId }
+      });
+      console.log(`Successfully deleted assistant in database: ${assistantId}`);
+
+      return true;
+    } catch (error) {
+      // Log the error but don't throw it to prevent blocking the project deletion
+      console.error(`Error deleting assistant ${assistantId}:`, error);
+      logger.error(error, {
+        action: 'delete_assistant',
+        assistantId
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Deletes a vector store from OpenAI
+   * @param vectorStoreId - ID of the vector store in our database
+   * @returns True if successful, false if already deleted or not found
+   */
+  static async deleteVectorStore(vectorStoreId: string): Promise<boolean> {
+    try {
+      // First get the vector store from our database to get the OpenAI ID
+      const vectorStore = await prisma.vectorStore.findUnique({
+        where: { id: vectorStoreId }
+      });
+
+      if (!vectorStore?.openaiVectorStoreId) {
+        console.log(`Vector store ${vectorStoreId} not found or missing OpenAI ID`);
+        return false;
+      }
+
+      const openaiVectorStoreId = vectorStore.openaiVectorStoreId;
+      console.log(`Deleting vector store ${vectorStoreId} (OpenAI ID: ${openaiVectorStoreId})`);
+
+      // Get the OpenAI client
+      const client = await this.getClient();
+
+      // Delete the vector store in OpenAI
+      await client.vectorStores.del(openaiVectorStoreId);
+      console.log(`Successfully deleted vector store in OpenAI: ${openaiVectorStoreId}`);
+
+      // Delete the vector store in our database
+      await prisma.vectorStore.delete({
+        where: { id: vectorStoreId }
+      });
+      console.log(`Successfully deleted vector store in database: ${vectorStoreId}`);
+
+      return true;
+    } catch (error) {
+      // Log the error but don't throw it to prevent blocking the project deletion
+      console.error(`Error deleting vector store ${vectorStoreId}:`, error);
+      logger.error(error, {
+        action: 'delete_vector_store',
+        vectorStoreId
+      });
+      return false;
+    }
+  }
 } 

@@ -426,7 +426,12 @@ export async function DELETE(
     // Check if user is the creator of the project
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { createdById: true }
+      select: { 
+        createdById: true,
+        vectorStoreId: true,
+        assistantId: true,
+        name: true
+      }
     });
 
     if (!project) {
@@ -443,13 +448,79 @@ export async function DELETE(
       );
     }
 
-    // Delete the project
+    // Import the AIService for cleaning up AI resources
+    const { AIService } = await import('@/lib/services/ai-service');
+    
+    // Clean up AI resources if they exist
+    const cleanupResults = {
+      assistantDeleted: false,
+      vectorStoreDeleted: false,
+      assistantDetails: null as any,
+      vectorStoreDetails: null as any
+    };
+    
+    // Starting with a log for audit/debugging
+    console.log(`Starting deletion of project ${projectId} (${project.name}) with AI resources:`, { 
+      hasAssistant: !!project.assistantId, 
+      hasVectorStore: !!project.vectorStoreId 
+    });
+    
+    // Delete assistant if it exists
+    if (project.assistantId) {
+      console.log(`Attempting to delete assistant ${project.assistantId} for project ${projectId}`);
+      try {
+        // Get assistant details before deletion for logging
+        const assistant = await prisma.assistant.findUnique({
+          where: { id: project.assistantId },
+          select: { id: true, name: true, openaiAssistantId: true }
+        });
+        
+        cleanupResults.assistantDetails = assistant;
+        
+        // Delete the assistant
+        cleanupResults.assistantDeleted = await AIService.deleteAssistant(project.assistantId);
+        console.log(`Assistant deletion ${cleanupResults.assistantDeleted ? 'SUCCEEDED' : 'FAILED'} for ${project.assistantId}`);
+      } catch (error) {
+        console.error(`Error during assistant deletion for project ${projectId}:`, error);
+      }
+    }
+    
+    // Delete vector store if it exists
+    if (project.vectorStoreId) {
+      console.log(`Attempting to delete vector store ${project.vectorStoreId} for project ${projectId}`);
+      try {
+        // Get vector store details before deletion for logging
+        const vectorStore = await prisma.vectorStore.findUnique({
+          where: { id: project.vectorStoreId },
+          select: { id: true, name: true, openaiVectorStoreId: true }
+        });
+        
+        cleanupResults.vectorStoreDetails = vectorStore;
+        
+        // Delete the vector store
+        cleanupResults.vectorStoreDeleted = await AIService.deleteVectorStore(project.vectorStoreId);
+        console.log(`Vector store deletion ${cleanupResults.vectorStoreDeleted ? 'SUCCEEDED' : 'FAILED'} for ${project.vectorStoreId}`);
+      } catch (error) {
+        console.error(`Error during vector store deletion for project ${projectId}:`, error);
+      }
+    }
+
+    // Delete the project after AI resources are handled
+    console.log(`Now deleting project ${projectId} (${project.name}) from database`);
     await prisma.project.delete({
       where: { id: projectId }
     });
+    console.log(`Project ${projectId} (${project.name}) successfully deleted from database`);
 
     return NextResponse.json(
-      { message: "Project deleted successfully" },
+      { 
+        message: "Project deleted successfully",
+        aiResourcesCleanup: cleanupResults,
+        project: {
+          id: projectId,
+          name: project.name
+        }
+      },
       { status: 200 }
     );
   } catch (error) {
