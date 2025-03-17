@@ -10,7 +10,8 @@ import {
   LucideSettings, 
   LucideFolder, 
   LucideChevronLeft, 
-  LucideChevronRight 
+  LucideChevronRight,
+  LucideUser
 } from "lucide-react";
 import { 
   Tooltip,
@@ -68,6 +69,12 @@ export function Sidebar({ className }: SidebarProps) {
             
             <Separator className="my-2" />
             
+            <NavItem
+              href="/profile"
+              icon={<LucideUser className="h-5 w-5" />}
+              label="Profile"
+              collapsed={collapsed}
+            />
             <NavItem
               href="/settings"
               icon={<LucideSettings className="h-5 w-5" />}

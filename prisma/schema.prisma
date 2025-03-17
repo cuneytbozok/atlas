@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  name           String?
+  email          String          @unique
+  emailVerified  DateTime?
+  password       String
+  image          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  activityLogs   ActivityLog[]
+  apiUsageLogs   ApiUsageLog[]
+  uploadedFiles  File[]
+  projects       Project[]       @relation("ProjectCreator")
+  projectMembers ProjectMember[]
+  refreshTokens  RefreshToken[]
+  sessions       Session[]
+  userRoles      UserRole[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  projectMembers  ProjectMember[]
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model Project {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  createdBy   User             @relation("ProjectCreator", fields: [createdById], references: [id])
+  members     ProjectMember[]
+  settings    ProjectSetting[]
+  threads     Thread[]
+
+  @@index([createdById])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model ProjectSetting {
+  id           String  @id @default(cuid())
+  projectId    String
+  settingKey   String
+  settingValue String
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, settingKey])
+  @@index([projectId])
+}
+
+model Assistant {
+  id                String            @id @default(cuid())
+  name              String
+  openaiAssistantId String?           @unique
+  configuration     Json?
+  model             String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  fileAssociations  FileAssociation[] @relation("AssistantFiles")
+  threads           Thread[]
+
+  @@index([openaiAssistantId])
+}
+
+model Thread {
+  id               String            @id @default(cuid())
+  projectId        String?
+  assistantId      String?
+  openaiThreadId   String?           @unique
+  title            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  fileAssociations FileAssociation[] @relation("AssistantFiles")
+  messages         Message[]
+  assistant        Assistant?        @relation(fields: [assistantId], references: [id])
+  project          Project?          @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([assistantId])
+  @@index([openaiThreadId])
+}
+
+model Message {
+  id               String            @id @default(cuid())
+  threadId         String
+  role             String
+  content          String
+  openaiMessageId  String?           @unique
+  createdAt        DateTime          @default(now())
+  fileAssociations FileAssociation[] @relation("AssistantFiles")
+  thread           Thread            @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([openaiMessageId])
+}
+
+model File {
+  id           String            @id @default(cuid())
+  name         String
+  openaiFileId String?           @unique
+  mimeType     String
+  size         Int
+  uploadedById String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  uploadedBy   User              @relation(fields: [uploadedById], references: [id])
+  associations FileAssociation[]
+
+  @@index([uploadedById])
+  @@index([openaiFileId])
+}
+
+model FileAssociation {
+  id             String    @id @default(cuid())
+  fileId         String
+  associableType String
+  associableId   String
+  createdAt      DateTime  @default(now())
+  assistant      Assistant @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
+  file           File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  assistant      Message   @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
+  assistant      Thread    @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
+
+  @@unique([fileId, associableType, associableId])
+  @@index([fileId])
+  @@index([associableId])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  timestamp  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}
+
+model ApiUsageLog {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String
+  tokensUsed Int
+  cost       Float
+  timestamp  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([endpoint])
+  @@index([timestamp])
+}
+
+model ErrorLog {
+  id         String   @id @default(cuid())
+  message    String
+  stackTrace String?
+  context    Json?
+  timestamp  DateTime @default(now())
+
+  @@index([timestamp])
+}

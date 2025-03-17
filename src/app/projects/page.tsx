@@ -17,28 +17,31 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { LucideUserPlus } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 
 export default function ProjectsPage() {
   return (
-    <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-h1">Projects</h1>
-            <p className="text-muted-foreground">
-              Manage your AI-assisted projects
-            </p>
+    <ProtectedRoute>
+      <MainLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-h1">Projects</h1>
+              <p className="text-muted-foreground">
+                Manage your AI-assisted projects
+              </p>
+            </div>
+            <CreateProjectModal />
           </div>
-          <CreateProjectModal />
+          
+          <div className="grid gap-4">
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
         </div>
-        
-        <div className="grid gap-4">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      </div>
-    </MainLayout>
+      </MainLayout>
+    </ProtectedRoute>
   );
 }
 
