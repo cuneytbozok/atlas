@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useRouter } from "next/navigation";
-import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings } from "lucide-react";
+import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings, LucideBrain, LucideMessageSquare } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useEffect, useState, useCallback } from "react";
@@ -129,6 +129,27 @@ export default function ProjectPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Add effect to scroll to ATLAS AI section when hash is present
+  useEffect(() => {
+    // Check if the URL has a hash and it's #atlas-ai
+    if (typeof window !== 'undefined' && window.location.hash === '#atlas-ai') {
+      // Find the element
+      const atlasAiSection = document.getElementById('atlas-ai');
+      if (atlasAiSection) {
+        // Scroll to the element with smooth behavior
+        atlasAiSection.scrollIntoView({ behavior: 'smooth' });
+        
+        // Add a slight delay and highlight effect
+        setTimeout(() => {
+          atlasAiSection.classList.add('bg-primary/5');
+          setTimeout(() => {
+            atlasAiSection.classList.remove('bg-primary/5');
+          }, 1000);
+        }, 500);
+      }
+    }
+  }, []);
 
   // File upload handlers
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -613,13 +634,18 @@ export default function ProjectPage() {
             </Card>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6" id="atlas-ai">
             <h2 className="text-h2 mb-4">Ask ATLAS</h2>
             <Card>
               <CardContent className="p-6">
                 <div className="text-center py-6">
-                  <p className="text-muted-foreground">Connect with ATLAS AI to assist with your project</p>
-                  <Button variant="outline" className="mt-4">Start Conversation</Button>
+                  <LucideBrain className="h-12 w-12 mx-auto mb-4 text-primary" />
+                  <h3 className="text-lg font-medium mb-2">AI-Powered Assistance</h3>
+                  <p className="text-muted-foreground mb-6">Connect with ATLAS AI to get intelligent assistance with your project tasks, answer questions, and boost your productivity.</p>
+                  <Button className="gap-2">
+                    <LucideMessageSquare className="h-4 w-4" />
+                    Start Conversation
+                  </Button>
                 </div>
               </CardContent>
             </Card>
