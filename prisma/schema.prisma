@@ -98,6 +98,7 @@ model Project {
   id          String           @id @default(cuid())
   name        String
   description String?
+  status      String           @default("active")
   createdById String
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -205,10 +206,10 @@ model FileAssociation {
   associableType String
   associableId   String
   createdAt      DateTime  @default(now())
-  assistant      Assistant @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
+  assistantRef   Assistant? @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
   file           File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  assistant      Message   @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
-  assistant      Thread    @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_assistantId_fkey")
+  messageRef     Message?  @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_messageId_fkey")
+  threadRef      Thread?   @relation("AssistantFiles", fields: [associableId], references: [id], onDelete: Cascade, map: "FileAssociation_threadId_fkey")
 
   @@unique([fileId, associableType, associableId])
   @@index([fileId])

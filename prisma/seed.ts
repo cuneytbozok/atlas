@@ -4,6 +4,20 @@ import { hashPassword } from '../src/lib/auth/password';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Create default roles if they don't exist
+  const roles = [
+    { name: 'admin', description: 'Project administrator with full access' },
+    { name: 'member', description: 'Regular project member' },
+  ];
+
+  for (const role of roles) {
+    await prisma.role.upsert({
+      where: { name: role.name },
+      update: {},
+      create: role,
+    });
+  }
+
   // Create roles
   const adminRole = await prisma.role.upsert({
     where: { name: 'ADMIN' },
@@ -225,114 +239,15 @@ async function main() {
   
   console.log({ projectManager });
 
-  // Create a sample project
-  const project = await prisma.project.upsert({
-    where: { id: 'sample-project-1' },
-    update: {},
-    create: {
-      id: 'sample-project-1',
-      name: 'Sample AI Project',
-      description: 'A sample project to demonstrate ATLAS capabilities',
-      createdById: admin.id,
-    },
-  });
+  // The sample project creation has been removed as it's no longer needed
 
-  console.log({ project });
-
-  // Add project members
-  await prisma.projectMember.upsert({
-    where: {
-      projectId_userId: {
-        projectId: project.id,
-        userId: admin.id,
-      },
-    },
-    update: {},
-    create: {
-      projectId: project.id,
-      userId: admin.id,
-      roleId: adminRole.id,
-    },
-  });
-
-  await prisma.projectMember.upsert({
-    where: {
-      projectId_userId: {
-        projectId: project.id,
-        userId: user.id,
-      },
-    },
-    update: {},
-    create: {
-      projectId: project.id,
-      userId: user.id,
-      roleId: userRole.id,
-    },
-  });
-
-  // Create a sample assistant
-  const assistant = await prisma.assistant.upsert({
-    where: { id: 'sample-assistant-1' },
-    update: {},
-    create: {
-      id: 'sample-assistant-1',
-      name: 'ATLAS Assistant',
-      model: 'gpt-4o',
-      configuration: {
-        instructions: 'You are ATLAS, an AI assistant that helps with productivity tasks.',
-        tools: ['code_interpreter', 'retrieval'],
-      },
-    },
-  });
-
-  console.log({ assistant });
-
-  // Create a sample thread
-  const thread = await prisma.thread.upsert({
-    where: { id: 'sample-thread-1' },
-    update: {},
-    create: {
-      id: 'sample-thread-1',
-      title: 'Getting Started with ATLAS',
-      projectId: project.id,
-      assistantId: assistant.id,
-    },
-  });
-
-  console.log({ thread });
-
-  // Create sample messages
-  const userMessage = await prisma.message.upsert({
-    where: { id: 'sample-message-1' },
-    update: {},
-    create: {
-      id: 'sample-message-1',
-      threadId: thread.id,
-      role: 'user',
-      content: 'Hello ATLAS, can you help me get started with this project?',
-    },
-  });
-
-  const assistantMessage = await prisma.message.upsert({
-    where: { id: 'sample-message-2' },
-    update: {},
-    create: {
-      id: 'sample-message-2',
-      threadId: thread.id,
-      role: 'assistant',
-      content: 'Of course! I\'d be happy to help you get started with ATLAS. What specific aspect of the project would you like to explore first?',
-    },
-  });
-
-  console.log({ userMessage, assistantMessage });
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
+  .catch((e) => {
     console.error(e);
-    await prisma.$disconnect();
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   }); 
