@@ -18,7 +18,7 @@ export async function GET(
       );
     }
 
-    const projectId = params.id;
+    const projectId: string = params.id;
 
     // Find the user
     const user = await prisma.user.findUnique({
@@ -113,7 +113,7 @@ export async function PATCH(
       );
     }
 
-    const projectId = params.id;
+    const projectId: string = params.id;
     
     try {
       const body = await request.json();
@@ -408,7 +408,7 @@ export async function DELETE(
       );
     }
 
-    const projectId = params.id;
+    const projectId: string = params.id;
 
     // Find the user
     const user = await prisma.user.findUnique({

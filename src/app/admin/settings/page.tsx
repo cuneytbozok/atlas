@@ -34,6 +34,8 @@ export default function AdminSettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDatabaseError, setIsDatabaseError] = useState(false);
+  const [aiModel, setAiModel] = useState("gpt-4o");
+  const [isModelSaving, setIsModelSaving] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -143,6 +145,15 @@ export default function AdminSettingsPage() {
       const data = await response.json();
       console.log("API response data:", data);
       setIsApiKeySet(data.isSet);
+      
+      // Get the current model setting
+      const modelResponse = await fetch(`/api/admin/settings/openai-model`);
+      if (modelResponse.ok) {
+        const modelData = await modelResponse.json();
+        if (modelData.model) {
+          setAiModel(modelData.model);
+        }
+      }
     } catch (err) {
       console.error("Error checking API key:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to check API key status";
@@ -234,6 +245,46 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleSaveModel = async () => {
+    try {
+      setError(null);
+      setIsModelSaving(true);
+
+      // Simple validation
+      if (!aiModel.trim()) {
+        setError("Model name is required");
+        return;
+      }
+
+      const response = await fetch(`/api/admin/settings/openai-model`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: aiModel }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save model setting");
+      }
+
+      toast.success("Success", {
+        description: "OpenAI model saved successfully",
+      });
+    } catch (err) {
+      console.error("Error saving model:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to save model";
+      setError(errorMessage);
+      toast.error("Error", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsModelSaving(false);
+    }
+  };
+
   return (
     <ProtectedRoute requiredRole="ADMIN">
       <MainLayout>
@@ -303,115 +354,140 @@ export default function AdminSettingsPage() {
           {/* API Key Management Card - only show if no database connection error */}
           {!isDatabaseError && (
             <Card>
-              <CardHeader className="flex flex-row items-center">
-                <div className="flex-1">
-                  <CardTitle>AI Provider Settings</CardTitle>
-                  <CardDescription>
-                    Configure settings for AI providers like OpenAI
-                  </CardDescription>
-                </div>
-                <LucideKey className="h-6 w-6 text-muted-foreground" />
-              </CardHeader>
-
-              <CardContent>
-                <div className="space-y-4">
+              <CardHeader>
+                <div className="flex flex-row items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-medium mb-2">OpenAI API Key</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {isApiKeySet
-                        ? "An OpenAI API key is currently configured. You can update or remove it below."
-                        : "No OpenAI API key is configured. Add one to enable AI features."}
-                    </p>
-
-                    {isLoading ? (
-                      <div className="flex justify-center py-4">
-                        <LucideLoader className="h-6 w-6 animate-spin text-primary" />
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              type={showApiKey ? "text" : "password"}
-                              placeholder="Enter OpenAI API key"
-                              value={apiKey}
-                              onChange={(e) => setApiKey(e.target.value)}
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowApiKey(!showApiKey)}
-                              className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                              aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                            >
-                              {showApiKey ? (
-                                <LucideEyeOff className="h-4 w-4" />
-                              ) : (
-                                <LucideEye className="h-4 w-4" />
-                              )}
-                            </button>
-                          </div>
+                    <CardTitle>OpenAI Configuration</CardTitle>
+                    <CardDescription>
+                      Configure OpenAI API settings for AI features
+                    </CardDescription>
+                  </div>
+                  <LucideKey className="h-6 w-6 text-muted-foreground" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* API Key Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">API Key</h3>
+                  
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : isApiKeySet ? (
+                    <div className="space-y-4">
+                      <Alert variant="default" className="bg-green-50 dark:bg-green-950">
+                        <AlertTitle>API Key Configured</AlertTitle>
+                        <AlertDescription>
+                          Your OpenAI API key is configured and ready to use.
+                        </AlertDescription>
+                      </Alert>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive">
+                            Remove API Key
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove API Key</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove your OpenAI API key? This will disable AI features until a new key is provided.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteApiKey}>
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex">
+                          <Input
+                            type={showApiKey ? "text" : "password"}
+                            placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
+                          />
                           <Button
-                            onClick={handleSaveApiKey}
-                            disabled={isSaving || !apiKey.trim()}
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                            className="rounded-l-none border-l-0"
+                            type="button"
                           >
-                            {isSaving ? (
-                              <>
-                                <LucideLoader className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <LucideSave className="mr-2 h-4 w-4" />
-                                Save Key
-                              </>
-                            )}
+                            {showApiKey ? <LucideEyeOff /> : <LucideEye />}
                           </Button>
                         </div>
-
-                        {isApiKeySet && (
-                          <>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="destructive"
-                                  disabled={isSaving}
-                                >
-                                  Remove API Key
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove API Key?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove the OpenAI API key and disable AI features. Are you sure?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={handleDeleteApiKey}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Remove
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                            
-                            <Button 
-                              variant="outline" 
-                              className="mt-4 w-full"
-                              onClick={() => router.push("/admin/settings/ai-playground")}
-                            >
-                              <LucideBrain className="mr-2 h-4 w-4" />
-                              Test with AI Playground
-                            </Button>
-                          </>
-                        )}
+                        <p className="text-sm text-muted-foreground">
+                          Enter your OpenAI API key to enable AI features.
+                          Your key is securely encrypted before storage.
+                        </p>
                       </div>
-                    )}
+                      <Button
+                        onClick={handleSaveApiKey}
+                        disabled={isSaving || !apiKey.trim()}
+                      >
+                        {isSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                        Save API Key
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Model Selection Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">AI Model Configuration</h3>
+                  
+                  <div className="space-y-2">
+                    <label htmlFor="ai-model" className="text-sm font-medium">
+                      OpenAI Model
+                    </label>
+                    <Input
+                      id="ai-model"
+                      placeholder="e.g., gpt-4o, gpt-3.5-turbo"
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Specify which OpenAI model to use for AI features. Default is gpt-4o.
+                    </p>
                   </div>
+                  
+                  <Button
+                    onClick={handleSaveModel}
+                    disabled={isModelSaving || !aiModel.trim()}
+                  >
+                    {isModelSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                    Save Model Setting
+                  </Button>
+                </div>
+
+                {/* AI Playground Link */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">AI Playground</h3>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => router.push('/admin/settings/ai-playground')}
+                    disabled={!isApiKeySet}
+                  >
+                    <LucideBrain className="mr-2 h-4 w-4" />
+                    Open AI Playground
+                  </Button>
+                  {!isApiKeySet && (
+                    <p className="text-sm text-muted-foreground">
+                      You need to set up an API key before using the AI Playground.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -106,8 +106,16 @@ model Project {
   members     ProjectMember[]
   settings    ProjectSetting[]
   threads     Thread[]
+  
+  // Add references to VectorStore and Assistant
+  vectorStoreId    String?
+  vectorStore      VectorStore?     @relation(fields: [vectorStoreId], references: [id])
+  assistantId      String?
+  assistant        Assistant?       @relation("ProjectAssistant", fields: [assistantId], references: [id])
 
   @@index([createdById])
+  @@index([vectorStoreId])
+  @@index([assistantId])
 }
 
 model ProjectMember {
@@ -148,6 +156,7 @@ model Assistant {
   updatedAt         DateTime          @updatedAt
   fileAssociations  FileAssociation[] @relation("AssistantFiles")
   threads           Thread[]
+  projects          Project[]         @relation("ProjectAssistant")
 
   @@index([openaiAssistantId])
 }
@@ -265,4 +274,17 @@ model AppSetting {
   description String?
 
   @@index([key])
+}
+
+// Add a new model for vector stores
+model VectorStore {
+  id                 String      @id @default(cuid())
+  name               String
+  openaiVectorStoreId String?    @unique
+  configuration      Json?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  projects           Project[]
+
+  @@index([openaiVectorStoreId])
 }

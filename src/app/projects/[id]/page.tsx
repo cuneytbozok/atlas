@@ -16,7 +16,7 @@ import {
   Dialog, 
   DialogContent, 
   DialogDescription, 
-  DialogFooter, 
+  DialogFooter,
   DialogHeader, 
   DialogTitle,
   DialogTrigger
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ProjectMember {
   id: string;
@@ -74,6 +75,8 @@ interface Project {
   };
   members: ProjectMember[];
   projectManager?: ProjectMember | null;
+  vectorStoreId: string;
+  assistantId: string;
 }
 
 interface User {
@@ -119,14 +122,17 @@ interface FileUpload {
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
-  const projectId = params.id as string;
+  const { hasRole } = useAuth();
+  const projectId = params?.id as string;
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isManageTeamDialogOpen, setIsManageTeamDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreatingAiResources, setIsCreatingAiResources] = useState(false);
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -242,36 +248,42 @@ export default function ProjectPage() {
     toast.info("File removed");
   };
 
-  useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  // Function to fetch project data
+  const fetchProject = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        const response = await fetch(`/api/projects/${projectId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch project");
-        }
-
-        const data = await response.json();
-        
-        // Find the project manager (member with PROJECT_MANAGER role)
-        const projectManager = data.members.find(
-          (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
-        ) || null;
-
-        setProject({
-          ...data,
-          projectManager
-        });
-      } catch (err) {
-        console.error("Error fetching project:", err);
-        setError("Failed to fetch project");
-      } finally {
-        setIsLoading(false);
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch project");
       }
-    };
 
+      const data = await response.json();
+      
+      // Find the project manager (member with PROJECT_MANAGER role)
+      const projectManager = data.members.find(
+        (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
+      ) || null;
+
+      const updatedProject = {
+        ...data,
+        projectManager
+      };
+      
+      setProject(updatedProject);
+      return updatedProject;
+    } catch (err) {
+      console.error("Error fetching project:", err);
+      setError("Failed to fetch project");
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Call fetchProject when projectId changes
+  useEffect(() => {
     if (projectId) {
       fetchProject();
     }
@@ -280,7 +292,7 @@ export default function ProjectPage() {
   const handleDeleteProject = async () => {
     try {
       setIsDeleting(true);
-      const response = await fetch(`/api/projects/${params.id}`, {
+      const response = await fetch(`/api/projects/${params?.id}`, {
         method: "DELETE",
       });
 
@@ -442,6 +454,155 @@ export default function ProjectPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              
+              {hasRole("ADMIN") && (
+                <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <LucideSettings className="h-4 w-4 mr-2" />
+                      Debug Info
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Project Debug Information</DialogTitle>
+                      <DialogDescription>
+                        Technical details for this project's AI resources
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {project.vectorStoreId || "Not available"}
+                        </code>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {project.assistantId || "Not available"}
+                        </code>
+                      </div>
+                      
+                      {(project.vectorStoreId && project.assistantId) ? (
+                        <div className="mt-4">
+                          <h3 className="text-sm font-medium mb-1">Connection Status</h3>
+                          <div className="flex items-center">
+                            <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
+                            <p className="text-sm text-muted-foreground">Vector store and assistant are linked</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            If you're experiencing issues with file search or context, you may need to recreate the AI resources.
+                          </p>
+                          
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch('/api/admin/projects/verify-ai-connection', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    projectId: project.id
+                                  })
+                                });
+                                
+                                const data = await response.json();
+                                
+                                if (response.ok) {
+                                  if (data.isConnected) {
+                                    toast.success('Connection verified', {
+                                      description: 'The assistant is properly connected to the vector store'
+                                    });
+                                  } else {
+                                    toast.error('Connection issue detected', {
+                                      description: 'The assistant is not properly connected to the vector store'
+                                    });
+                                  }
+                                  
+                                  // Show detailed results in console for debugging
+                                  console.log('Vector store connection verification:', data);
+                                } else {
+                                  throw new Error(data.message || 'Failed to verify connection');
+                                }
+                              } catch (err) {
+                                console.error('Error verifying connection:', err);
+                                toast.error('Error', {
+                                  description: err instanceof Error ? err.message : 'Failed to verify connection'
+                                });
+                              }
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 w-full"
+                          >
+                            Verify Connection
+                          </Button>
+                        </div>
+                      ) : null}
+                      
+                      {(!project.vectorStoreId || !project.assistantId) && (
+                        <div className="mt-6">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                setIsCreatingAiResources(true);
+                                const response = await fetch('/api/admin/projects/setup-ai', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    projectId: project.id
+                                  })
+                                });
+                                
+                                if (!response.ok) {
+                                  const data = await response.json();
+                                  throw new Error(data.message || 'Failed to set up AI resources');
+                                }
+                                
+                                await fetchProject();
+                                toast.success('AI resources created successfully');
+                              } catch (err) {
+                                console.error('Error setting up AI resources:', err);
+                                toast.error('Error', {
+                                  description: err instanceof Error ? err.message : 'Failed to set up AI resources'
+                                });
+                              } finally {
+                                setIsCreatingAiResources(false);
+                              }
+                            }}
+                            variant="default"
+                            className="w-full"
+                            disabled={isCreatingAiResources}
+                          >
+                            {isCreatingAiResources ? (
+                              <>
+                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                                Creating AI Resources...
+                              </>
+                            ) : (
+                              'Create AI Resources'
+                            )}
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            This will attempt to create missing vector store and assistant resources for this project.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <DialogFooter className="mt-6">
+                      <Button 
+                        onClick={() => setIsDebugModalOpen(false)}
+                      >
+                        Close
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
 

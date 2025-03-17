@@ -7,6 +7,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { withErrorHandling } from "@/lib/api/error-handler";
 import { logger } from "@/lib/logger";
+import { AIService } from "@/lib/services/ai-service";
 
 const prismaClient = new PrismaClient();
 
@@ -307,6 +308,34 @@ export const POST = withErrorHandling(async (request: Request) => {
         },
       });
     });
+
+    // Try to set up AI resources for the project asynchronously
+    // We don't want to block the project creation if AI setup fails
+    try {
+      // Set up AI resources in the background
+      AIService.setupProjectAI(
+        project.id,
+        project.name,
+        project.description
+      ).then(({ vectorStore, assistant }) => {
+        console.log(`AI resources set up for project ${project.id}`, {
+          projectId: project.id,
+          vectorStoreId: vectorStore.id,
+          assistantId: assistant.id
+        });
+      }).catch(error => {
+        logger.error(error, {
+          action: 'setup_project_ai',
+          projectId: project.id
+        });
+      });
+    } catch (error) {
+      // Log the error but don't fail the project creation
+      logger.error(error, {
+        action: 'setup_project_ai_attempt',
+        projectId: project.id
+      });
+    }
 
     return NextResponse.json(project);
   } catch (error) {

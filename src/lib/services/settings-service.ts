@@ -215,4 +215,29 @@ export class SettingsService {
   static async getOpenAIApiKey(): Promise<string | null> {
     return this.getSetting('openai.api.key');
   }
+
+  /**
+   * Set the OpenAI model name
+   * @param model - The OpenAI model name (e.g., "gpt-4", "gpt-3.5-turbo")
+   * @param createdBy - Optional user ID of who set the model
+   * @returns The created or updated setting
+   */
+  static async setOpenAIModel(model: string, createdBy?: string): Promise<AppSetting | null> {
+    return this.setSetting(
+      'openai.model',
+      model,
+      false, // No need to encrypt model names
+      createdBy,
+      'OpenAI Model name for AI services'
+    );
+  }
+
+  /**
+   * Get the OpenAI model name
+   * @returns The model name, or the default model if not set
+   */
+  static async getOpenAIModel(): Promise<string> {
+    const model = await this.getSetting('openai.model');
+    return model || 'gpt-4o'; // Default to gpt-4o if not set
+  }
 } 
