@@ -1,7 +1,8 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { LucideFolder, LucideUsers, LucideBot } from "lucide-react";
+import { LucideFolder, LucideUsers } from "lucide-react";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -14,24 +15,22 @@ export default function Home() {
           </p>
         </div>
         
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           <DashboardCard
             title="Projects"
             description="Manage your AI-assisted projects and workflows"
             icon={<LucideFolder className="h-8 w-8 text-primary" />}
-            action={<Button>View Projects</Button>}
+            action={
+              <Button asChild>
+                <Link href="/projects">View Projects</Link>
+              </Button>
+            }
           />
           <DashboardCard
             title="Team"
             description="Collaborate with your team members in real-time"
             icon={<LucideUsers className="h-8 w-8 text-secondary" />}
             action={<Button variant="secondary">View Team</Button>}
-          />
-          <DashboardCard
-            title="AI Assistants"
-            description="Configure specialized AI assistants for your tasks"
-            icon={<LucideBot className="h-8 w-8 text-info" />}
-            action={<Button variant="outline">Configure</Button>}
           />
         </div>
       </div>

@@ -1,12 +1,26 @@
+"use client";
+
 import { MainLayout } from "@/components/layout/main-layout";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useState } from "react";
+import { LucideUserPlus } from "lucide-react";
 
 export default function ProjectsPage() {
   return (
-    <MainLayout
-      contextPanel={<ProjectContextPanel />}
-      contextPanelTitle="Project Details"
-    >
+    <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -15,7 +29,7 @@ export default function ProjectsPage() {
               Manage your AI-assisted projects
             </p>
           </div>
-          <Button>New Project</Button>
+          <CreateProjectModal />
         </div>
         
         <div className="grid gap-4">
@@ -25,6 +39,99 @@ export default function ProjectsPage() {
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+function CreateProjectModal() {
+  const [members, setMembers] = useState<string[]>([]);
+  const [newMember, setNewMember] = useState("");
+
+  const handleAddMember = () => {
+    if (newMember.trim() && !members.includes(newMember.trim())) {
+      setMembers([...members, newMember.trim()]);
+      setNewMember("");
+    }
+  };
+
+  const handleRemoveMember = (memberToRemove: string) => {
+    setMembers(members.filter(member => member !== memberToRemove));
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button id="new-project-button">New Project</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Create New Project</DialogTitle>
+          <DialogDescription>
+            Create a new AI-assisted project and add team members.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="project-title">Project Title</Label>
+            <Input id="project-title" placeholder="Enter project title" />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="project-description">Short Description</Label>
+            <Textarea 
+              id="project-description" 
+              placeholder="Enter a brief description of the project"
+              className="resize-none"
+              rows={3}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Project Members</Label>
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Add member by email or username" 
+                value={newMember}
+                onChange={(e) => setNewMember(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddMember();
+                  }
+                }}
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="icon" 
+                onClick={handleAddMember}
+              >
+                <LucideUserPlus className="h-4 w-4" />
+              </Button>
+            </div>
+            {members.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {members.map((member, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm"
+                  >
+                    <span>{member}</span>
+                    <button 
+                      type="button" 
+                      className="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+                      onClick={() => handleRemoveMember(member)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="submit">Create Project</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -78,8 +185,8 @@ function ProjectCard({ project }: ProjectCardProps) {
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="sm">
-          View
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/projects/${project.id}`}>View</Link>
         </Button>
       </div>
     </div>
@@ -99,39 +206,5 @@ function StatusBadge({ status }: { status: Project["status"] }) {
     >
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
-  );
-}
-
-function ProjectContextPanel() {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-h3 mb-2">Project Stats</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md bg-muted p-3">
-            <div className="text-muted-foreground text-body-small">Active</div>
-            <div className="text-h2">2</div>
-          </div>
-          <div className="rounded-md bg-muted p-3">
-            <div className="text-muted-foreground text-body-small">Completed</div>
-            <div className="text-h2">1</div>
-          </div>
-        </div>
-      </div>
-      
-      <div>
-        <h3 className="text-h3 mb-2">Recent Activity</h3>
-        <div className="space-y-2">
-          <div className="rounded-md bg-muted p-3">
-            <div className="text-body-small">Project &quot;Market Analysis&quot; updated</div>
-            <div className="text-body-small text-muted-foreground">2 hours ago</div>
-          </div>
-          <div className="rounded-md bg-muted p-3">
-            <div className="text-body-small">New comment on &quot;Content Strategy&quot;</div>
-            <div className="text-body-small text-muted-foreground">Yesterday</div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 } 
