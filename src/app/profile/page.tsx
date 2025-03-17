@@ -65,11 +65,6 @@ export default function ProfilePage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-2">
                   <Button asChild variant="outline" className="justify-start">
-                    <Link href="/settings">
-                      Edit Profile
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="justify-start">
                     <Link href="/settings/password">
                       Change Password
                     </Link>

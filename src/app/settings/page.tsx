@@ -1,36 +1,14 @@
 "use client";
 
 import { MainLayout } from "@/components/layout/main-layout";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import Link from "next/link";
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-  });
-  
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-  
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real app, you would update the user profile here
-    console.log('Form submitted:', formData);
-    // Show success message
-    alert('Profile updated successfully!');
-  };
 
   return (
     <ProtectedRoute>
@@ -43,47 +21,64 @@ export default function SettingsPage() {
             </p>
           </div>
           
-          <Card>
-            <form onSubmit={handleSubmit}>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
               <CardHeader>
-                <CardTitle>Profile Settings</CardTitle>
+                <CardTitle>Account Settings</CardTitle>
                 <CardDescription>
-                  Update your personal information
+                  Manage your account security and preferences
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Button asChild variant="outline" className="justify-start">
+                    <Link href="/settings/password">
+                      Change Password
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="justify-start">
+                    <Link href="/settings/notifications">
+                      Notification Preferences
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>System Information</CardTitle>
+                <CardDescription>
+                  View information about your account
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input 
-                    id="name" 
-                    name="name" 
-                    value={formData.name} 
-                    onChange={handleChange} 
-                    placeholder="Your name"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email" 
-                    value={formData.email} 
-                    onChange={handleChange} 
-                    placeholder="Your email"
-                    disabled
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Email cannot be changed. Contact support for assistance.
-                  </p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Name:</span>
+                    <span className="font-medium">{user?.name || 'Not set'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Email:</span>
+                    <span className="font-medium">{user?.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Roles:</span>
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      {user?.roles?.map((role) => (
+                        <span 
+                          key={role} 
+                          className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full text-xs"
+                        >
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button type="submit">Save Changes</Button>
-              </CardFooter>
-            </form>
-          </Card>
+            </Card>
+          </div>
         </div>
       </MainLayout>
     </ProtectedRoute>
