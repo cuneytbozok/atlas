@@ -217,7 +217,11 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
   });
   const [members, setMembers] = useState<{ email: string }[]>([]);
   const [projectManager, setProjectManager] = useState<{ id: string; email: string; name: string | null } | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Replace single search query with separate states for each field
+  const [managerSearchQuery, setManagerSearchQuery] = useState("");
+  const [membersSearchQuery, setMembersSearchQuery] = useState("");
+  
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string | null; email: string; image: string | null }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -232,8 +236,14 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
     }));
   };
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
+  const handleSearch = async (query: string, type: "members" | "manager") => {
+    // Update the appropriate search query based on type
+    if (type === "manager") {
+      setManagerSearchQuery(query);
+    } else {
+      setMembersSearchQuery(query);
+    }
+
     if (query.length < 2) {
       setSearchResults([]);
       return;
@@ -260,10 +270,11 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
       if (!members.some(m => m.email === user.email)) {
         setMembers([...members, { email: user.email }]);
       }
+      setMembersSearchQuery("");
     } else {
       setProjectManager(user);
+      setManagerSearchQuery("");
     }
-    setSearchQuery("");
     setSearchResults([]);
   };
 
@@ -357,12 +368,12 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
           <div className="relative">
             <Input 
               placeholder="Search for a project manager" 
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              value={managerSearchQuery}
+              onChange={(e) => handleSearch(e.target.value, "manager")}
               onFocus={() => setSearchType("manager")}
               className="pr-8"
             />
-            {isSearching && (
+            {isSearching && searchType === "manager" && (
               <div className="absolute right-2 top-2">
                 <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
@@ -413,12 +424,12 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
           <div className="relative">
             <Input 
               placeholder="Search users by name or email" 
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              value={membersSearchQuery}
+              onChange={(e) => handleSearch(e.target.value, "members")}
               onFocus={() => setSearchType("members")}
               className="pr-8"
             />
-            {isSearching && (
+            {isSearching && searchType === "members" && (
               <div className="absolute right-2 top-2">
                 <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
