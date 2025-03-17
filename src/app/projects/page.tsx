@@ -216,11 +216,13 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
     description: "",
   });
   const [members, setMembers] = useState<{ email: string }[]>([]);
+  const [projectManager, setProjectManager] = useState<{ id: string; email: string; name: string | null } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string | null; email: string; image: string | null }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<"members" | "manager">("members");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -253,12 +255,16 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
     }
   };
 
-  const handleAddMember = (user: { email: string }) => {
-    if (!members.some(m => m.email === user.email)) {
-      setMembers([...members, { email: user.email }]);
-      setSearchQuery("");
-      setSearchResults([]);
+  const handleAddMember = (user: { id: string; email: string; name: string | null }) => {
+    if (searchType === "members") {
+      if (!members.some(m => m.email === user.email)) {
+        setMembers([...members, { email: user.email }]);
+      }
+    } else {
+      setProjectManager(user);
     }
+    setSearchQuery("");
+    setSearchResults([]);
   };
 
   const handleRemoveMember = (memberToRemove: string) => {
@@ -284,6 +290,7 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
           name: formData.name,
           description: formData.description,
           members: members.length > 0 ? members : undefined,
+          projectManagerId: projectManager?.id,
         }),
       });
 
@@ -343,13 +350,16 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
             onChange={handleChange}
           />
         </div>
+        
+        {/* Project Manager Selection */}
         <div className="grid gap-2">
-          <Label>Project Members</Label>
+          <Label>Project Manager</Label>
           <div className="relative">
             <Input 
-              placeholder="Search users by name or email" 
+              placeholder="Search for a project manager" 
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => setSearchType("manager")}
               className="pr-8"
             />
             {isSearching && (
@@ -358,7 +368,63 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
               </div>
             )}
           </div>
-          {searchResults.length > 0 && (
+          {searchType === "manager" && searchResults.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-black ring-opacity-5">
+              {searchResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => handleAddMember(user)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback>
+                        {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span>{user.name || 'No name'}</span>
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {projectManager && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1 text-sm">
+                <span>{projectManager.name || projectManager.email} (Project Manager)</span>
+                <button 
+                  type="button" 
+                  className="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={() => setProjectManager(null)}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="grid gap-2">
+          <Label>Team Members</Label>
+          <div className="relative">
+            <Input 
+              placeholder="Search users by name or email" 
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => setSearchType("members")}
+              className="pr-8"
+            />
+            {isSearching && (
+              <div className="absolute right-2 top-2">
+                <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          {searchType === "members" && searchResults.length > 0 && (
             <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-black ring-opacity-5">
               {searchResults.map((user) => (
                 <button

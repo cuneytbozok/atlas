@@ -11,7 +11,8 @@ import {
   LucideFolder, 
   LucideChevronLeft, 
   LucideChevronRight,
-  LucideUser
+  LucideUser,
+  LucideShield
 } from "lucide-react";
 import { 
   Tooltip,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
 
 interface SidebarProps {
   className?: string;
@@ -28,6 +30,8 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole("ADMIN");
 
   return (
     <div
@@ -66,6 +70,18 @@ export function Sidebar({ className }: SidebarProps) {
               label="Team"
               collapsed={collapsed}
             />
+            
+            {isAdmin && (
+              <>
+                <Separator className="my-2" />
+                <NavItem
+                  href="/admin/users"
+                  icon={<LucideShield className="h-5 w-5" />}
+                  label="Admin"
+                  collapsed={collapsed}
+                />
+              </>
+            )}
             
             <Separator className="my-2" />
             

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useRouter } from "next/navigation";
-import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash } from "lucide-react";
+import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useEffect, useState, useCallback } from "react";
@@ -43,6 +43,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 interface ProjectMember {
   id: string;
@@ -72,6 +73,7 @@ interface Project {
     email: string;
   };
   members: ProjectMember[];
+  projectManager?: ProjectMember | null;
 }
 
 interface User {
@@ -223,31 +225,27 @@ export default function ProjectPage() {
     const fetchProject = async () => {
       try {
         setIsLoading(true);
+        setError(null);
+
         const response = await fetch(`/api/projects/${projectId}`);
-        
         if (!response.ok) {
-          if (response.status === 404) {
-            setError("Project not found");
-            return;
-          }
           throw new Error("Failed to fetch project");
         }
-        
+
         const data = await response.json();
-        console.log("Project data:", data); // Debug log
         
-        // Add status if it doesn't exist
-        if (!data.status) {
-          data.status = "active";
-        }
-        
-        setProject(data);
+        // Find the project manager (member with PROJECT_MANAGER role)
+        const projectManager = data.members.find(
+          (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
+        ) || null;
+
+        setProject({
+          ...data,
+          projectManager
+        });
       } catch (err) {
         console.error("Error fetching project:", err);
-        setError("An error occurred while fetching the project. Please try again.");
-        toast.error("Error", {
-          description: "Failed to fetch project details"
-        });
+        setError("Failed to fetch project");
       } finally {
         setIsLoading(false);
       }
@@ -555,22 +553,35 @@ export default function ProjectPage() {
                 <CardTitle className="text-base">Project Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created By</span>
-                    <span>{project.createdBy?.name || project.createdBy?.email || "Unknown"}</span>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+                    <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Team Size</span>
-                    <span>{(project.members && Array.isArray(project.members) ? project.members.length : 0)} members</span>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
+                    <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created</span>
-                    <span>{formattedCreatedDate}</span>
+                  {project.projectManager && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Project Manager</h3>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback>
+                            {getInitials(project.projectManager)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{getDisplayName(project.projectManager)}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
+                    <p className="mt-1">{formattedCreatedDate}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Updated</span>
-                    <span>{formattedUpdatedDate}</span>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
+                    <p className="mt-1">{formattedUpdatedDate}</p>
                   </div>
                 </div>
               </CardContent>
@@ -772,6 +783,51 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<ProjectMember | null>(null);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [roles, setRoles] = useState<{id: string, name: string, displayName: string, description: string | null}[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+
+  // Fetch project roles when the role dialog opens
+  useEffect(() => {
+    if (isRoleDialogOpen) {
+      fetchRoles();
+    }
+  }, [isRoleDialogOpen]);
+
+  // Fetch available roles from the database
+  const fetchRoles = async () => {
+    setIsLoadingRoles(true);
+    try {
+      // Fetch roles from the database with project context
+      const response = await fetch('/api/roles?context=project');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch roles');
+      }
+      
+      const projectRoles = await response.json();
+      setRoles(projectRoles);
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+      
+      // Fallback to hardcoded roles if API fails
+      const fallbackRoles = [
+        { id: "ADMIN", name: "ADMIN", displayName: "Administrator", description: "Full access to the project" },
+        { id: "PROJECT_MANAGER", name: "PROJECT_MANAGER", displayName: "Project Manager", description: "Can manage the project" },
+        { id: "USER", name: "USER", displayName: "Team Member", description: "Regular team member" }
+      ];
+      
+      setRoles(fallbackRoles);
+      
+      toast.error("Error", {
+        description: "Failed to fetch roles, using default values"
+      });
+    } finally {
+      setIsLoadingRoles(false);
+    }
+  };
 
   const handleSearch = async (query: string) => {
     if (query.length < 2) {
@@ -862,6 +918,64 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
     }
   };
 
+  const handleUpdateRole = async (roleId: string) => {
+    if (!selectedMember) return;
+    
+    setIsUpdatingRole(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/members/${selectedMember.id}/role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roleId,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to update member role");
+      }
+
+      const data = await response.json();
+      
+      // Update the member in the project
+      const updatedMembers = project.members.map(member => {
+        if (member.id === selectedMember.id) {
+          return {
+            ...member,
+            role: data.role
+          };
+        }
+        return member;
+      });
+      
+      // Update project with new members
+      project.members = updatedMembers;
+      
+      // Update project manager if needed
+      if (data.role.name === "PROJECT_MANAGER") {
+        project.projectManager = {
+          ...selectedMember,
+          role: data.role
+        };
+      } else if (selectedMember.role.name === "PROJECT_MANAGER") {
+        project.projectManager = null;
+      }
+      
+      toast.success("Member role updated successfully");
+      setIsRoleDialogOpen(false);
+    } catch (err) {
+      console.error("Error updating member role:", err);
+      toast.error("Error", {
+        description: err instanceof Error ? err.message : "Failed to update member role"
+      });
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   return (
     <div>
       <DialogHeader>
@@ -940,42 +1054,115 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
             </div>
           )}
         </div>
+
         <div className="grid gap-2">
           <Label>Current Team Members</Label>
-          <div className="space-y-2">
-            {project.members.map((member) => (
-              <div key={member.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      {getInitials(member)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{getDisplayName(member)}</span>
-                      <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">
-                        {member.role.name}
-                      </span>
+          {project.members && project.members.length > 0 ? (
+            <div className="space-y-2">
+              {project.members.map((member) => (
+                <div key={member.id} className="flex items-center justify-between rounded-md border p-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {getInitials(member)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium">{getDisplayName(member)}</div>
+                      <div className="text-sm text-muted-foreground">{getEmail(member)}</div>
                     </div>
-                    <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={member.role.name === "PROJECT_MANAGER" ? "default" : "outline"}>
+                      {member.role.name}
+                    </Badge>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setIsRoleDialogOpen(true);
+                        }}
+                      >
+                        <LucideSettings className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleRemoveMember(member.id)}
+                      >
+                        <LucideX className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                {/* Don't allow removing the project creator */}
-                {member.user.id !== project.createdById && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveMember(member.id)}
-                  >
-                    <LucideX className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              No team members yet. Add members using the search above.
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Role Dialog */}
+      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Member Role</DialogTitle>
+            <DialogDescription>
+              {selectedMember && `Update role for ${getDisplayName(selectedMember)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="role">Role</Label>
+              <Select 
+                defaultValue={selectedMember?.role.id} 
+                onValueChange={(value) => handleUpdateRole(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingRoles ? (
+                    <div className="flex items-center justify-center p-2">
+                      <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+                      <span className="text-sm">Loading roles...</span>
+                    </div>
+                  ) : (
+                    roles.map(role => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.displayName || role.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsRoleDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              disabled={isUpdatingRole}
+              onClick={() => {
+                if (selectedMember && selectedMember.role.id) {
+                  handleUpdateRole(selectedMember.role.id);
+                }
+              }}
+            >
+              {isUpdatingRole ? "Updating..." : "Update Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

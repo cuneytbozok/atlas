@@ -4,47 +4,30 @@ import { hashPassword } from '../src/lib/auth/password';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create default roles if they don't exist
-  const roles = [
-    { name: 'admin', description: 'Project administrator with full access' },
-    { name: 'member', description: 'Regular project member' },
+  // Define the system roles with proper display names
+  const systemRoles = [
+    { name: 'ADMIN', description: 'Administrator with full access to all features' },
+    { name: 'PROJECT_MANAGER', description: 'User who can manage projects' },
+    { name: 'USER', description: 'Regular user with limited access' }
   ];
 
-  for (const role of roles) {
+  // Create or update system roles
+  for (const roleData of systemRoles) {
     await prisma.role.upsert({
-      where: { name: role.name },
-      update: {},
-      create: role,
+      where: { name: roleData.name },
+      update: { description: roleData.description },
+      create: roleData,
     });
   }
 
-  // Create roles
-  const adminRole = await prisma.role.upsert({
-    where: { name: 'ADMIN' },
-    update: {},
-    create: {
-      name: 'ADMIN',
-      description: 'Administrator with full access to all features',
-    },
-  });
+  // Get references to the created roles
+  const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
+  const userRole = await prisma.role.findUnique({ where: { name: 'USER' } });
+  const projectManagerRole = await prisma.role.findUnique({ where: { name: 'PROJECT_MANAGER' } });
 
-  const userRole = await prisma.role.upsert({
-    where: { name: 'USER' },
-    update: {},
-    create: {
-      name: 'USER',
-      description: 'Regular user with limited access',
-    },
-  });
-
-  const projectManagerRole = await prisma.role.upsert({
-    where: { name: 'PROJECT_MANAGER' },
-    update: {},
-    create: {
-      name: 'PROJECT_MANAGER',
-      description: 'User who can manage projects',
-    },
-  });
+  if (!adminRole || !userRole || !projectManagerRole) {
+    throw new Error("Failed to create required roles");
+  }
 
   console.log({ adminRole, userRole, projectManagerRole });
 
@@ -239,8 +222,9 @@ async function main() {
   
   console.log({ projectManager });
 
-  // The sample project creation has been removed as it's no longer needed
-
+  // Instead of trying to delete roles directly, log a message about using the cleanup script
+  console.log('\nNOTE: To clean up any lowercase duplicate roles (admin, member), please run:');
+  console.log('npm run fix-roles\n');
 }
 
 main()

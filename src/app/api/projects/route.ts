@@ -19,6 +19,7 @@ const createProjectSchema = z.object({
       roleId: z.string().optional(),
     })
   ).optional(),
+  projectManagerId: z.string().optional(),
 });
 
 interface Project {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     console.log("Project creation request body:", body);
-    const { name, description, members } = body;
+    const { name, description, members, projectManagerId } = body;
 
     if (!name) {
       return NextResponse.json({ message: "Project name is required" }, { status: 400 });
@@ -126,6 +127,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Admin role not found" }, { status: 500 });
     }
 
+    // Get the project manager role
+    const projectManagerRole = await prismaClient.role.findUnique({
+      where: { name: "PROJECT_MANAGER" }
+    });
+
+    if (!projectManagerRole) {
+      console.error("Project manager role not found in database");
+      return NextResponse.json({ message: "Project manager role not found" }, { status: 500 });
+    }
+
     // Get the member role for other users
     const memberRole = await prismaClient.role.findUnique({
       where: { name: "USER" }
@@ -136,7 +147,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Member role not found" }, { status: 500 });
     }
 
-    console.log("Found roles:", { adminRole, memberRole });
+    console.log("Found roles:", { adminRole, projectManagerRole, memberRole });
 
     // Create the project with a transaction to ensure all operations succeed
     const project = await prismaClient.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -160,6 +171,66 @@ export async function POST(request: Request) {
         }
       });
 
+      // Add project manager if provided
+      if (projectManagerId) {
+        const projectManager = await tx.user.findUnique({
+          where: { id: projectManagerId },
+          select: { id: true }
+        });
+
+        if (projectManager) {
+          // Check if user is already a member (e.g., the creator)
+          const existingMember = await tx.projectMember.findUnique({
+            where: {
+              projectId_userId: {
+                projectId: newProject.id,
+                userId: projectManager.id
+              }
+            }
+          });
+
+          if (!existingMember) {
+            await tx.projectMember.create({
+              data: {
+                projectId: newProject.id,
+                userId: projectManager.id,
+                roleId: projectManagerRole.id
+              }
+            });
+          } else {
+            // Update the role to project manager if already a member
+            await tx.projectMember.update({
+              where: {
+                projectId_userId: {
+                  projectId: newProject.id,
+                  userId: projectManager.id
+                }
+              },
+              data: {
+                roleId: projectManagerRole.id
+              }
+            });
+          }
+
+          // Ensure the user has the PROJECT_MANAGER role at the system level
+          const hasProjectManagerRole = await tx.userRole.findFirst({
+            where: {
+              userId: projectManager.id,
+              roleId: projectManagerRole.id
+            }
+          });
+
+          if (!hasProjectManagerRole) {
+            await tx.userRole.create({
+              data: {
+                userId: projectManager.id,
+                roleId: projectManagerRole.id
+              }
+            });
+          }
+        }
+      }
+
       // Add members if provided
       if (members && members.length > 0) {
         console.log("Adding members:", members);
@@ -171,7 +242,7 @@ export async function POST(request: Request) {
           });
 
           if (memberUser) {
-            // Check if user is already a member (e.g., the creator)
+            // Check if user is already a member (e.g., the creator or project manager)
             const existingMember = await tx.projectMember.findUnique({
               where: {
                 projectId_userId: {
