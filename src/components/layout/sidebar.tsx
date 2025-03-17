@@ -76,8 +76,14 @@ export function Sidebar({ className }: SidebarProps) {
                 <Separator className="my-2" />
                 <NavItem
                   href="/admin/users"
-                  icon={<LucideShield className="h-5 w-5" />}
-                  label="Admin"
+                  icon={<LucideUsers className="h-5 w-5" />}
+                  label="User Management"
+                  collapsed={collapsed}
+                />
+                <NavItem
+                  href="/admin/settings"
+                  icon={<LucideSettings className="h-5 w-5" />}
+                  label="App Settings"
                   collapsed={collapsed}
                 />
               </>
