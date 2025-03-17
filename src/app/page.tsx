@@ -62,12 +62,12 @@ export default function Home() {
             />
             <DashboardCard
               title="ATLAS AI"
-              description="Connect with your AI assistant for enhanced productivity"
+              description="Chat with your AI assistant about your projects and documents"
               icon={<LucideBrain className="h-8 w-8 text-secondary" />}
               action={
                 <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="secondary">Connect to ATLAS</Button>
+                    <Button variant="secondary">Start Chat</Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <ConnectToAtlasForm onClose={() => setIsConnectDialogOpen(false)} />
@@ -92,6 +92,7 @@ function ConnectToAtlasForm({ onClose }: ConnectToAtlasFormProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -117,15 +118,24 @@ function ConnectToAtlasForm({ onClose }: ConnectToAtlasFormProps) {
     fetchProjects();
   }, []);
 
+  // Filter projects based on search query
+  const filteredProjects = searchQuery
+    ? projects.filter(project => 
+        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : projects;
+
   const handleConnect = () => {
     if (!selectedProjectId) {
       toast.error("Please select a project");
       return;
     }
     
-    router.push(`/projects/${selectedProjectId}#atlas-ai`);
-    toast.success("Connected to ATLAS AI", {
-      description: "You can now start your conversation with ATLAS AI"
+    // Direct to the chat page instead of the project page with anchor
+    router.push(`/projects/${selectedProjectId}/chat`);
+    toast.success("Opening ATLAS Chat", {
+      description: "You can now chat with your AI assistant about your project"
     });
     onClose();
   };
@@ -133,9 +143,9 @@ function ConnectToAtlasForm({ onClose }: ConnectToAtlasFormProps) {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Connect to ATLAS</DialogTitle>
+        <DialogTitle>Start a Chat</DialogTitle>
         <DialogDescription>
-          Select a project to connect with ATLAS AI.
+          Select a project to chat with your ATLAS AI assistant.
         </DialogDescription>
       </DialogHeader>
       
@@ -147,6 +157,18 @@ function ConnectToAtlasForm({ onClose }: ConnectToAtlasFormProps) {
         )}
         
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="search">Search Projects</Label>
+            <input
+              id="search"
+              type="text"
+              placeholder="Search by project name..."
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
           <div className="space-y-2">
             <Label htmlFor="project">Select Project</Label>
             {isLoading ? (
@@ -164,7 +186,7 @@ function ConnectToAtlasForm({ onClose }: ConnectToAtlasFormProps) {
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {filteredProjects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
                     </SelectItem>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useRouter } from "next/navigation";
-import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings, LucideBrain, LucideMessageSquare } from "lucide-react";
+import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings, LucideBrain, LucideMessageSquare, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useEffect, useState, useCallback } from "react";
@@ -45,6 +45,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
+import { useProject } from "./layout";
 
 interface ProjectMember {
   id: string;
@@ -88,23 +89,21 @@ interface User {
 
 // Helper functions for member data
 const safeCharAt = (str: string | null | undefined, index: number): string => {
-  return str ? str.charAt(index) : "?";
+  return (str && str.length > index) ? str.charAt(index).toUpperCase() : '';
 };
 
 const getInitials = (member: ProjectMember): string => {
-  if (!member?.user) return "?";
-  return member.user.name 
-    ? safeCharAt(member.user.name, 0).toUpperCase()
-    : safeCharAt(member.user.email, 0).toUpperCase();
+  const name = member.user.name;
+  return name ? 
+    `${safeCharAt(name, 0)}${safeCharAt(name.split(' ')[1], 0)}` : 
+    safeCharAt(member.user.email, 0);
 };
 
 const getDisplayName = (member: ProjectMember): string => {
-  if (!member?.user) return "Unknown User";
   return member.user.name || member.user.email;
 };
 
 const getEmail = (member: ProjectMember): string => {
-  if (!member?.user) return "No email";
   return member.user.email;
 };
 
@@ -143,9 +142,7 @@ export default function ProjectPage() {
   const router = useRouter();
   const { hasRole } = useAuth();
   const projectId = params?.id as string;
-  const [project, setProject] = useState<Project | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { project, isLoading, error, refreshProject } = useProject();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isManageTeamDialogOpen, setIsManageTeamDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -154,9 +151,9 @@ export default function ProjectPage() {
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCreatingAiResources, setIsCreatingAiResources] = useState(false);
-  const [files, setFiles] = useState<FileUpload[]>([]);
+  const [fileUploads, setFileUploads] = useState<FileUpload[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [deletionSteps, setDeletionSteps] = useState<Array<{
+  const [deleteSteps, setDeleteSteps] = useState<Array<{
     id: string;
     label: string;
     status: 'pending' | 'inProgress' | 'completed' | 'error';
@@ -220,7 +217,7 @@ export default function ProjectPage() {
   };
 
   const handleFiles = (newFiles: File[]) => {
-    const newUploads = newFiles.map(file => ({
+    const uploads = newFiles.map(file => ({
       id: crypto.randomUUID(),
       name: file.name,
       size: file.size,
@@ -229,15 +226,15 @@ export default function ProjectPage() {
       status: 'uploading' as const
     }));
 
-    setFiles(prev => [...prev, ...newUploads]);
+    setFileUploads(prev => [...prev, ...uploads]);
 
     // Simulate upload progress for each file
-    newUploads.forEach(fileUpload => {
-      simulateFileUpload(fileUpload.id);
+    uploads.forEach(fileUpload => {
+      simulateFileUpload(fileUpload.id, newFiles.find(f => f.name === fileUpload.name)!);
     });
   };
 
-  const simulateFileUpload = (fileId: string) => {
+  const simulateFileUpload = async (fileId: string, file: File) => {
     let progress = 0;
     const interval = setInterval(() => {
       progress += Math.floor(Math.random() * 10) + 5;
@@ -246,11 +243,11 @@ export default function ProjectPage() {
         progress = 100;
         clearInterval(interval);
         
-        setFiles(prev => 
-          prev.map(file => 
-            file.id === fileId 
-              ? { ...file, progress: 100, status: 'complete' } 
-              : file
+        setFileUploads(prev => 
+          prev.map(item => 
+            item.id === fileId 
+              ? { ...item, progress: 100, status: 'complete' } 
+              : item
           )
         );
         
@@ -258,11 +255,11 @@ export default function ProjectPage() {
           description: "File has been uploaded successfully"
         });
       } else {
-        setFiles(prev => 
-          prev.map(file => 
-            file.id === fileId 
-              ? { ...file, progress } 
-              : file
+        setFileUploads(prev => 
+          prev.map(item => 
+            item.id === fileId 
+              ? { ...item, progress } 
+              : item
           )
         );
       }
@@ -270,180 +267,13 @@ export default function ProjectPage() {
   };
 
   const handleRemoveFile = (fileId: string) => {
-    setFiles(prev => prev.filter(file => file.id !== fileId));
+    setFileUploads(prev => prev.filter(item => item.id !== fileId));
     toast.info("File removed");
-  };
-
-  // Function to fetch project data
-  const fetchProject = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch project");
-      }
-
-      const data = await response.json();
-      
-      // Find the project manager (member with PROJECT_MANAGER role)
-      const projectManager = data.members.find(
-        (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
-      ) || null;
-
-      const updatedProject = {
-        ...data,
-        projectManager
-      };
-      
-      setProject(updatedProject);
-      return updatedProject;
-    } catch (err) {
-      console.error("Error fetching project:", err);
-      setError("Failed to fetch project");
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Call fetchProject when projectId changes
-  useEffect(() => {
-    if (projectId) {
-      fetchProject();
-    }
-  }, [projectId]);
-
-  const handleDeleteProject = async () => {
-    try {
-      setIsDeleting(true);
-      setIsDeleteDialogOpen(false);
-      setIsDeleteInProgress(true);
-      
-      // Define the deletion steps based on project resources
-      const steps = [
-        { id: 'prepare', label: 'Preparing to delete project', status: 'pending' as const },
-      ];
-      
-      // Add assistant deletion step if needed
-      if (project?.assistantId) {
-        steps.push({ 
-          id: 'assistant', 
-          label: 'Deleting OpenAI assistant', 
-          status: 'pending' as const 
-        });
-      }
-      
-      // Add vector store deletion step if needed
-      if (project?.vectorStoreId) {
-        steps.push({ 
-          id: 'vectorStore', 
-          label: 'Deleting OpenAI vector store', 
-          status: 'pending' as const 
-        });
-      }
-      
-      // Add project deletion and redirect steps
-      steps.push(
-        { id: 'project', label: 'Deleting project data', status: 'pending' as const },
-        { id: 'redirect', label: 'Redirecting to projects page', status: 'pending' as const }
-      );
-      
-      setDeletionSteps(steps);
-      
-      // Start with the preparation step
-      updateDeletionStep('prepare', 'inProgress');
-      setDeletionStage("Preparing to delete project");
-      
-      // Mark preparation as completed and start assistant deletion if applicable
-      setTimeout(() => {
-        updateDeletionStep('prepare', 'completed');
-        
-        if (project?.assistantId) {
-          updateDeletionStep('assistant', 'inProgress');
-          setDeletionStage("Deleting OpenAI assistant");
-        } else if (project?.vectorStoreId) {
-          updateDeletionStep('vectorStore', 'inProgress');
-          setDeletionStage("Deleting OpenAI vector store");
-        } else {
-          updateDeletionStep('project', 'inProgress');
-          setDeletionStage("Deleting project data");
-        }
-      }, 500);
-      
-      // Make the delete API call
-      const response = await fetch(`/api/projects/${params?.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to delete project");
-      }
-
-      const data = await response.json();
-      
-      // Log AI resources cleanup results for debugging
-      if (data.aiResourcesCleanup) {
-        console.log("AI resources cleanup results:", data.aiResourcesCleanup);
-      }
-
-      // Update deletion steps based on cleanup results
-      if (project?.assistantId) {
-        updateDeletionStep('assistant', data.aiResourcesCleanup?.assistantDeleted ? 'completed' : 'error');
-      }
-      
-      if (project?.vectorStoreId) {
-        updateDeletionStep('vectorStore', data.aiResourcesCleanup?.vectorStoreDeleted ? 'completed' : 'error');
-      }
-      
-      // Mark project deletion as completed
-      updateDeletionStep('project', 'completed');
-      setDeletionStage("Project deleted successfully");
-      
-      // Show success toast with cleanup status
-      toast.success("Project deleted successfully", {
-        description: data.aiResourcesCleanup ? 
-          `AI resources cleanup: ${getCleanupStatus(data.aiResourcesCleanup)}` : 
-          undefined
-      });
-      
-      // Start the redirect step
-      updateDeletionStep('redirect', 'inProgress');
-      setDeletionStage("Redirecting to projects page");
-      
-      // Add a small delay before redirect to ensure the user sees the completion message
-      setTimeout(() => {
-        updateDeletionStep('redirect', 'completed');
-        router.push("/projects");
-      }, 1500);
-    } catch (err) {
-      console.error("Error deleting project:", err);
-      
-      // Mark all in-progress steps as error
-      setDeletionSteps(steps => 
-        steps.map(step => 
-          step.status === 'inProgress' 
-            ? { ...step, status: 'error' as const } 
-            : step
-        )
-      );
-      
-      setDeletionStage("Error during deletion");
-      toast.error("Error", {
-        description: err instanceof Error ? err.message : "Failed to delete project"
-      });
-      
-      // Don't close the dialog automatically on error so user can see what failed
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   // Helper function to update a deletion step's status
   const updateDeletionStep = (stepId: string, status: 'pending' | 'inProgress' | 'completed' | 'error') => {
-    setDeletionSteps(steps => 
+    setDeleteSteps(steps => 
       steps.map(step => 
         step.id === stepId 
           ? { ...step, status } 
@@ -452,599 +282,672 @@ export default function ProjectPage() {
     );
   };
 
-  const handleProjectUpdated = (updatedProject: Project) => {
-    // Ensure we have all the required fields
-    if (!updatedProject.members) {
-      updatedProject.members = project?.members || [];
-    }
-    
-    if (!updatedProject.status) {
-      updatedProject.status = "active";
-    }
-    
-    // Find the project manager (member with PROJECT_MANAGER role)
-    const projectManager = updatedProject.members.find(
-      (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
-    ) || null;
-    
-    setProject({
-      ...updatedProject,
-      projectManager
-    });
-    setIsEditDialogOpen(false);
+  const handleProjectUpdated = () => {
+    refreshProject();
     toast.success("Project updated successfully");
+    setIsEditDialogOpen(false);
   };
 
   const handleMemberAdded = (newMember: ProjectMember) => {
-    if (project) {
-      setProject({
-        ...project,
-        members: [...project.members, newMember]
-      });
-      toast.success("Team member added successfully");
-    }
+    refreshProject();
+    toast.success("Team member added successfully");
   };
 
   const handleMemberRemoved = (memberId: string) => {
-    if (project) {
-      setProject({
-        ...project,
-        members: project.members.filter(member => member.id !== memberId)
+    refreshProject();
+    toast.success("Team member removed successfully");
+  };
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      // Start deletion process
+      updateDeletionStep('assistant', 'inProgress');
+      
+      // Delete assistant
+      const assistantResp = await fetch(`/api/admin/assistants/${project.assistantId}`, {
+        method: 'DELETE'
       });
-      toast.success("Team member removed successfully");
+      
+      if (!assistantResp.ok) {
+        throw new Error('Failed to delete assistant');
+      }
+      
+      updateDeletionStep('assistant', 'completed');
+      updateDeletionStep('vectorStore', 'inProgress');
+      
+      // Delete vector store
+      const vectorStoreResp = await fetch(`/api/admin/vector-stores/${project.vectorStoreId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!vectorStoreResp.ok) {
+        throw new Error('Failed to delete vector store');
+      }
+      
+      updateDeletionStep('vectorStore', 'completed');
+      updateDeletionStep('project', 'inProgress');
+      
+      // Delete project
+      const projectResp = await fetch(`/api/projects/${project.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (!projectResp.ok) {
+        throw new Error('Failed to delete project');
+      }
+      
+      updateDeletionStep('project', 'completed');
+      
+      // Show success message
+      toast.success("Project deleted successfully");
+      
+      // Navigate back to projects list
+      router.push('/projects');
+      
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error("Failed to delete project");
+      
+      // Mark current step as error
+      const currentStep = deleteSteps.find(step => step.status === 'inProgress');
+      if (currentStep) {
+        updateDeletionStep(currentStep.id, 'error');
+      }
+      
+      setIsDeleting(false);
     }
   };
 
   if (isLoading) {
     return (
-      <ProtectedRoute>
-        <MainLayout>
-          <div className="flex h-full items-center justify-center">
-            <LucideLoader className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        </MainLayout>
-      </ProtectedRoute>
+      <div className="flex h-full items-center justify-center">
+        <LucideLoader className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   if (error || !project) {
     return (
-      <ProtectedRoute>
-        <MainLayout>
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <h1 className="text-h1 mb-2">Project Not Found</h1>
-              <p className="text-muted-foreground mb-4">
-                The project you are looking for does not exist or has been removed.
-              </p>
-              <Button asChild>
-                <Link href="/projects">Back to Projects</Link>
-              </Button>
-            </div>
-          </div>
-        </MainLayout>
-      </ProtectedRoute>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-h1 mb-2">Project Not Found</h1>
+          <p className="text-muted-foreground mb-4">
+            {error || "The project you are looking for does not exist or has been removed."}
+          </p>
+          <Button asChild>
+            <Link href="/projects">Back to Projects</Link>
+          </Button>
+        </div>
+      </div>
     );
   }
 
   const formattedCreatedDate = new Date(project.createdAt).toLocaleDateString();
   const formattedUpdatedDate = new Date(project.updatedAt).toLocaleDateString();
 
+  // Main return for the project page
   return (
-    <ProtectedRoute>
-      <MainLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-h1">{project.name}</h1>
-                {project.status && (
-                  <div className={`rounded-full px-3 py-1 text-sm ${
-                    project.status === "active" 
-                      ? "bg-success/20 text-success" 
-                      : project.status === "completed" 
-                        ? "bg-info/20 text-info" 
-                        : "bg-muted text-muted-foreground"
-                  }`}>
-                    {safeCharAt(project.status, 0) + (project.status.slice(1) || '')}
-                  </div>
-                )}
+    <div className="space-y-6">
+      <div className="space-y-2 mb-6">
+        <h1 className="text-display">Project Overview</h1>
+        <p className="text-muted-foreground text-lg">
+          Manage and view details for {project.name}
+        </p>
+      </div>
+      
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-h2">{project.name}</h2>
+            {project.status && (
+              <div className={`rounded-full px-3 py-1 text-sm ${
+                project.status === "active" 
+                  ? "bg-success/20 text-success" 
+                  : project.status === "completed" 
+                    ? "bg-info/20 text-info" 
+                    : "bg-muted text-muted-foreground"
+              }`}>
+                {safeCharAt(project.status, 0) + (project.status.slice(1) || '')}
               </div>
-              <p className="text-muted-foreground mt-1">
-                {project.description || "No description provided"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">Edit Project</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <EditProjectForm 
-                    project={project} 
-                    onSuccess={handleProjectUpdated} 
-                    onCancel={() => setIsEditDialogOpen(false)} 
-                  />
-                </DialogContent>
-              </Dialog>
-
-              <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">Delete</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the project
-                      and all associated data.
-                    </AlertDialogDescription>
-                    <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                      <p className="font-medium mb-2">The following will be deleted:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>Project data and settings</li>
-                        <li>Team member associations</li>
-                        <li>All chat history and interactions</li>
-                        {project.vectorStoreId && (
-                          <li>
-                            Associated vector store{" "}
-                            <span className="text-xs opacity-70">(used for file search)</span>
-                          </li>
-                        )}
-                        {project.assistantId && (
-                          <li>
-                            Associated assistant{" "}
-                            <span className="text-xs opacity-70">(AI chat capabilities)</span>
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={handleDeleteProject}
-                      disabled={isDeleting}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      {isDeleting ? "Deleting..." : "Delete"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              
-              {hasRole("ADMIN") && (
-                <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <LucideSettings className="h-4 w-4 mr-2" />
-                      Debug Info
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Project Debug Information</DialogTitle>
-                      <DialogDescription>
-                        Technical details for this project's AI resources
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {project.vectorStoreId || "Not available"}
-                        </code>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {project.assistantId || "Not available"}
-                        </code>
-                      </div>
-                      
-                      {(project.vectorStoreId && project.assistantId) ? (
-                        <div className="mt-4">
-                          <h3 className="text-sm font-medium mb-1">Connection Status</h3>
-                          <div className="flex items-center">
-                            <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                            <p className="text-sm text-muted-foreground">Vector store and assistant are linked</p>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            If you're experiencing issues with file search or context, you may need to recreate the AI resources.
-                          </p>
-                          
-                          <Button
-                            onClick={async () => {
-                              try {
-                                const response = await fetch('/api/admin/projects/verify-ai-connection', {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({
-                                    projectId: project.id
-                                  })
-                                });
-                                
-                                const data = await response.json();
-                                
-                                if (response.ok) {
-                                  if (data.isConnected) {
-                                    toast.success('Connection verified', {
-                                      description: 'The assistant is properly connected to the vector store'
-                                    });
-                                  } else {
-                                    toast.error('Connection issue detected', {
-                                      description: 'The assistant is not properly connected to the vector store'
-                                    });
-                                  }
-                                  
-                                  // Show detailed results in console for debugging
-                                  console.log('Vector store connection verification:', data);
-                                } else {
-                                  throw new Error(data.message || 'Failed to verify connection');
-                                }
-                              } catch (err) {
-                                console.error('Error verifying connection:', err);
-                                toast.error('Error', {
-                                  description: err instanceof Error ? err.message : 'Failed to verify connection'
-                                });
-                              }
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="mt-4 w-full"
-                          >
-                            Verify Connection
-                          </Button>
-                        </div>
-                      ) : null}
-                      
-                      {(!project.vectorStoreId || !project.assistantId) && (
-                        <div className="mt-6">
-                          <Button
-                            onClick={async () => {
-                              try {
-                                setIsCreatingAiResources(true);
-                                const response = await fetch('/api/admin/projects/setup-ai', {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({
-                                    projectId: project.id
-                                  })
-                                });
-                                
-                                if (!response.ok) {
-                                  const data = await response.json();
-                                  throw new Error(data.message || 'Failed to set up AI resources');
-                                }
-                                
-                                await fetchProject();
-                                toast.success('AI resources created successfully');
-                              } catch (err) {
-                                console.error('Error setting up AI resources:', err);
-                                toast.error('Error', {
-                                  description: err instanceof Error ? err.message : 'Failed to set up AI resources'
-                                });
-                              } finally {
-                                setIsCreatingAiResources(false);
-                              }
-                            }}
-                            variant="default"
-                            className="w-full"
-                            disabled={isCreatingAiResources}
-                          >
-                            {isCreatingAiResources ? (
-                              <>
-                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                                Creating AI Resources...
-                              </>
-                            ) : (
-                              'Create AI Resources'
-                            )}
-                          </Button>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            This will attempt to create missing vector store and assistant resources for this project.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <DialogFooter className="mt-6">
-                      <Button 
-                        onClick={() => setIsDebugModalOpen(false)}
-                      >
-                        Close
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
+            )}
           </div>
+          <p className="text-muted-foreground mt-1">
+            {project.description || "No description provided"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild variant="secondary">
+            <Link href={`/projects/${project.id}/chat`}>
+              <MessagesSquare className="h-4 w-4 mr-2" />
+              Chat
+            </Link>
+          </Button>
+          
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">Edit Project</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <div className="p-4 text-center">
+                <h3 className="text-lg font-medium mb-2">Edit Project</h3>
+                <p className="text-muted-foreground mb-4">Project editing functionality will be implemented here.</p>
+                <Button onClick={handleProjectUpdated} className="mt-4">Save Changes</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-          <Separator />
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">Delete</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the project
+                  and all associated data.
+                </AlertDialogDescription>
+                <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+                  <p className="font-medium mb-2">The following will be deleted:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Project data and settings</li>
+                    <li>Team member associations</li>
+                    <li>All chat history and interactions</li>
+                    {project.vectorStoreId && (
+                      <li>
+                        Associated vector store{" "}
+                        <span className="text-xs opacity-70">(used for file search)</span>
+                      </li>
+                    )}
+                    {project.assistantId && (
+                      <li>
+                        Associated assistant{" "}
+                        <span className="text-xs opacity-70">(AI chat capabilities)</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDeleteProject}
+                  disabled={isDeleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          {hasRole("ADMIN") && (
+            <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <LucideSettings className="h-4 w-4 mr-2" />
+                  Debug Info
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Project Debug Information</DialogTitle>
+                  <DialogDescription>
+                    Technical details for this project's AI resources
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
+                    <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                      {project.vectorStoreId || "Not available"}
+                    </code>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
+                    <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                      {project.assistantId || "Not available"}
+                    </code>
+                  </div>
+                  
+                  {(project.vectorStoreId && project.assistantId) ? (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium mb-1">Connection Status</h3>
+                      <div className="flex items-center">
+                        <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
+                        <p className="text-sm text-muted-foreground">Vector store and assistant are linked</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        If you're experiencing issues with file search or context, you may need to recreate the AI resources.
+                      </p>
+                      
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/admin/projects/verify-ai-connection', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                projectId: project.id
+                              })
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                              if (data.isConnected) {
+                                toast.success('Connection verified', {
+                                  description: 'The assistant is properly connected to the vector store'
+                                });
+                              } else {
+                                toast.error('Connection issue detected', {
+                                  description: 'The assistant is not properly connected to the vector store'
+                                });
+                              }
+                              
+                              // Show detailed results in console for debugging
+                              console.log('Vector store connection verification:', data);
+                            } else {
+                              throw new Error(data.message || 'Failed to verify connection');
+                            }
+                          } catch (err) {
+                            console.error('Error verifying connection:', err);
+                            toast.error('Error', {
+                              description: err instanceof Error ? err.message : 'Failed to verify connection'
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 w-full"
+                      >
+                        Verify Connection
+                      </Button>
+                    </div>
+                  ) : null}
+                  
+                  {(!project.vectorStoreId || !project.assistantId) && (
+                    <div className="mt-6">
+                      <Button
+                        onClick={async () => {
+                          try {
+                            setIsCreatingAiResources(true);
+                            const response = await fetch('/api/admin/projects/setup-ai', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                projectId: project.id
+                              })
+                            });
+                            
+                            if (!response.ok) {
+                              const data = await response.json();
+                              throw new Error(data.message || 'Failed to set up AI resources');
+                            }
+                            
+                            await refreshProject();
+                            toast.success('AI resources created successfully');
+                          } catch (err) {
+                            console.error('Error setting up AI resources:', err);
+                            toast.error('Error', {
+                              description: err instanceof Error ? err.message : 'Failed to set up AI resources'
+                            });
+                          } finally {
+                            setIsCreatingAiResources(false);
+                          }
+                        }}
+                        variant="default"
+                        className="w-full"
+                        disabled={isCreatingAiResources}
+                      >
+                        {isCreatingAiResources ? (
+                          <>
+                            <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                            Creating AI Resources...
+                          </>
+                        ) : (
+                          'Create AI Resources'
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        This will attempt to create missing vector store and assistant resources for this project.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter className="mt-6">
+                  <Button 
+                    onClick={() => setIsDebugModalOpen(false)}
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideFileText className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-base">Project Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-                    <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
-                    <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
-                    <p className="mt-1">{formattedCreatedDate}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
-                    <p className="mt-1">{formattedUpdatedDate}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      <Separator />
 
-            <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideUsers className="h-5 w-5 text-muted-foreground" />
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="h-auto">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideFileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Project Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+                <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
+                <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
+                <p className="mt-1">{formattedCreatedDate}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
+                <p className="mt-1">{formattedUpdatedDate}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="h-auto">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideUsers className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Team Members</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {project.projectManager && (
+                <div className="border-b pb-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {getInitials(project.projectManager)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium">{getDisplayName(project.projectManager)}</span>
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{getEmail(project.projectManager)}</span>
+                    </div>
+                  </div>
                 </div>
-                <CardTitle className="text-base">Team Members</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {project.projectManager && (
-                    <div className="border-b pb-2 mb-2">
-                      <div className="flex items-center gap-2">
+              )}
+              
+              {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
+                <>
+                  {project.members
+                    .filter(member => !project.projectManager || member.id !== project.projectManager.id)
+                    .slice(0, 3)
+                    .map((member, index) => (
+                      <div key={member.id || index} className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback>
-                            {getInitials(project.projectManager)}
+                            {getInitials(member)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-medium">{getDisplayName(project.projectManager)}</span>
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{getEmail(project.projectManager)}</span>
+                          <span className="text-sm">{getDisplayName(member)}</span>
+                          <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
                         </div>
                       </div>
+                    ))}
+                  
+                  {project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length > 3 && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      +{project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length - 3} more team members
                     </div>
                   )}
-                  
-                  {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
-                    <>
-                      {project.members
-                        .filter(member => !project.projectManager || member.id !== project.projectManager.id)
-                        .slice(0, 3)
-                        .map((member, index) => (
-                          <div key={member.id || index} className="flex items-center gap-2">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback>
-                                {getInitials(member)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col">
-                              <span className="text-sm">{getDisplayName(member)}</span>
-                              <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      
-                      {project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length > 3 && (
-                        <div className="text-sm text-muted-foreground mt-2">
-                          +{project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length - 3} more team members
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No team members yet</p>
-                  )}
-                  
-                  <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full mt-2">
-                        <LucideUsers className="h-4 w-4 mr-2" />
-                        Manage Team
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
-                      <ManageTeamForm 
-                        project={project} 
-                        onMemberAdded={handleMemberAdded}
-                        onMemberRemoved={handleMemberRemoved}
-                        onClose={() => setIsManageTeamDialogOpen(false)} 
-                      />
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideUpload className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-base">Files</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
-                    isDragging 
-                      ? "border-primary bg-primary/5" 
-                      : "border-muted-foreground/20 hover:border-primary/50"
-                  }`}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                >
-                  <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Drag and drop files here or
-                  </p>
-                  <div>
-                    <label htmlFor="file-upload" className="cursor-pointer">
-                      <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
-                        Browse Files
-                      </Button>
-                      <input
-                        id="file-upload"
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileInputChange}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {files.length > 0 && (
-                  <div className="space-y-2 mt-3 max-h-[200px] overflow-y-auto">
-                    {files.map(file => (
-                      <div key={file.id} className="border rounded-md p-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2 truncate">
-                            <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm truncate">{file.name}</span>
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-6 w-6" 
-                            onClick={() => handleRemoveFile(file.id)}
-                          >
-                            <LucideTrash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="w-full">
-                          <Progress value={file.progress} className="h-1" />
-                        </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-xs text-muted-foreground">
-                            {formatFileSize(file.size)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {file.status === 'uploading' 
-                              ? `${file.progress}%` 
-                              : file.status === 'complete' 
-                                ? 'Complete' 
-                                : 'Error'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-6" id="atlas-ai">
-            <h2 className="text-h2 mb-4">Ask ATLAS</h2>
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center py-6">
-                  <LucideBrain className="h-12 w-12 mx-auto mb-4 text-primary" />
-                  <h3 className="text-lg font-medium mb-2">AI-Powered Assistance</h3>
-                  <p className="text-muted-foreground mb-6">Connect with ATLAS AI to get intelligent assistance with your project tasks, answer questions, and boost your productivity.</p>
-                  <Button className="gap-2">
-                    <LucideMessageSquare className="h-4 w-4" />
-                    Start Conversation
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No team members yet</p>
+              )}
+              
+              <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full mt-2">
+                    <LucideUsers className="h-4 w-4 mr-2" />
+                    Manage Team
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <ManageTeamForm 
+                    project={{
+                      id: project.id,
+                      name: project.name,
+                      members: project.members,
+                      projectManager: project.projectManager
+                    }} 
+                    onMemberAdded={handleMemberAdded}
+                    onMemberRemoved={handleMemberRemoved}
+                    onClose={() => setIsManageTeamDialogOpen(false)} 
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Add the enhanced deletion progress dialog */}
-          <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
-            // Only allow closing this dialog when deletion is not in progress
-            if (!isDeleting) setIsDeleteInProgress(open);
-          }}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Deleting Project</DialogTitle>
-                <DialogDescription>
-                  Please wait while we delete the project and its associated resources.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <LucideLoader className="h-5 w-5 animate-spin text-primary" />
-                    <p className="font-medium">{deletionStage}</p>
-                  </div>
-                  
-                  {/* Step-by-step progress */}
-                  <div className="space-y-3">
-                    {deletionSteps.map(step => (
-                      <div key={step.id} className="flex items-center gap-3">
-                        {step.status === 'pending' && (
-                          <div className="h-5 w-5 rounded-full border border-muted-foreground/30" />
-                        )}
-                        {step.status === 'inProgress' && (
-                          <LucideLoader className="h-5 w-5 animate-spin text-primary" />
-                        )}
-                        {step.status === 'completed' && (
-                          <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </div>
-                        )}
-                        {step.status === 'error' && (
-                          <div className="h-5 w-5 rounded-full bg-destructive flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M9 3L3 9M3 3L9 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </div>
-                        )}
-                        <p className={`text-sm ${
-                          step.status === 'completed' 
-                            ? 'text-muted-foreground line-through' 
-                            : step.status === 'error' 
-                              ? 'text-destructive' 
-                              : step.status === 'inProgress' 
-                                ? 'text-primary' 
-                                : 'text-muted-foreground'
-                        }`}>{step.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <p className="text-sm text-muted-foreground">
-                    Deleting AI resources from OpenAI can take some time. Please do not close this window.
-                  </p>
-                </div>
+        <Card className="h-auto">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideUpload className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Files</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div 
+              className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
+                isDragging 
+                  ? "border-primary bg-primary/5" 
+                  : "border-muted-foreground/20 hover:border-primary/50"
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground mb-1">
+                Drag and drop files here or
+              </p>
+              <div>
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
+                    Browse Files
+                  </Button>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+                </label>
               </div>
-              <DialogFooter>
-                <Button 
-                  onClick={() => setIsDeleteInProgress(false)}
-                  disabled={isDeleting}
-                  variant={isDeleting ? "outline" : "default"}
-                >
-                  {isDeleting ? "Deleting..." : "Close"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </MainLayout>
-    </ProtectedRoute>
+            </div>
+
+            {fileUploads.length > 0 && (
+              <div className="space-y-2 mt-3 max-h-[200px] overflow-y-auto">
+                {fileUploads.map(file => (
+                  <div key={file.id} className="border rounded-md p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2 truncate">
+                        <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm truncate">{file.name}</span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6" 
+                        onClick={() => handleRemoveFile(file.id)}
+                      >
+                        <LucideTrash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="w-full">
+                      <Progress value={file.progress} className="h-1" />
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs text-muted-foreground">
+                        {formatFileSize(file.size)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {file.status === 'uploading' 
+                          ? `${file.progress}%` 
+                          : file.status === 'complete' 
+                            ? 'Complete' 
+                            : 'Error'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
+      <div className="mt-6 flex flex-col md:flex-row gap-4">
+        <Card className="md:w-1/2">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Chat with ATLAS</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm mb-4">
+              Chat with your AI assistant about this project and its documents
+            </div>
+            
+            <Button asChild className="w-full">
+              <Link href={`/projects/${project.id}/chat`} className="flex items-center justify-center gap-2">
+                <LucideMessageSquare className="h-4 w-4" />
+                Open Chat
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card className="md:w-1/2">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideFileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Documents</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm mb-4">
+              Access and manage all documents related to this project
+            </div>
+            
+            <Button asChild className="w-full">
+              <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">
+                <LucideFileText className="h-4 w-4" />
+                View Documents
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Add the enhanced deletion progress dialog */}
+      <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
+        // Only allow closing this dialog when deletion is not in progress
+        if (!isDeleting) setIsDeleteInProgress(open);
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Deleting Project</DialogTitle>
+            <DialogDescription>
+              Please wait while we delete the project and its associated resources.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+                <p className="font-medium">{deletionStage}</p>
+              </div>
+              
+              {/* Step-by-step progress */}
+              <div className="space-y-3">
+                {deleteSteps.map(step => (
+                  <div key={step.id} className="flex items-center gap-3">
+                    {step.status === 'pending' && (
+                      <div className="h-5 w-5 rounded-full border border-muted-foreground/30" />
+                    )}
+                    {step.status === 'inProgress' && (
+                      <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+                    )}
+                    {step.status === 'completed' && (
+                      <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                    {step.status === 'error' && (
+                      <div className="h-5 w-5 rounded-full bg-destructive flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M9 3L3 9M3 3L9 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                    <p className={`text-sm ${
+                      step.status === 'completed' 
+                        ? 'text-muted-foreground line-through' 
+                        : step.status === 'error' 
+                          ? 'text-destructive' 
+                          : step.status === 'inProgress' 
+                            ? 'text-primary' 
+                            : 'text-muted-foreground'
+                    }`}>{step.label}</p>
+                  </div>
+                ))}
+              </div>
+              
+              <p className="text-sm text-muted-foreground">
+                Deleting AI resources from OpenAI can take some time. Please do not close this window.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={() => setIsDeleteInProgress(false)}
+              disabled={isDeleting}
+              variant={isDeleting ? "outline" : "default"}
+            >
+              {isDeleting ? "Deleting..." : "Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -1288,7 +1191,12 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
 }
 
 interface ManageTeamFormProps {
-  project: Project;
+  project: {
+    id: string;
+    name: string;
+    members: ProjectMember[];
+    projectManager?: ProjectMember | null;
+  };
   onMemberAdded: (member: ProjectMember) => void;
   onMemberRemoved: (memberId: string) => void;
   onClose: () => void;
@@ -1536,7 +1444,7 @@ function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
   
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];

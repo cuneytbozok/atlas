@@ -465,4 +465,83 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       return false;
     }
   }
+
+  /**
+   * Uploads a file to OpenAI
+   * @param fileBytes - The file content as Uint8Array
+   * @param fileName - The name of the file
+   * @param mimeType - The MIME type of the file
+   * @returns The OpenAI file ID
+   */
+  static async uploadFileToOpenAI(
+    fileBytes: Uint8Array,
+    fileName: string,
+    mimeType: string
+  ): Promise<string> {
+    try {
+      const client = await this.getClient();
+      
+      console.log(`Uploading file ${fileName} to OpenAI`);
+      
+      // Create a temporary file with the correct name and extension
+      const file = new File([fileBytes], fileName, { type: mimeType });
+      
+      // Upload the file to OpenAI
+      const response = await client.files.create({
+        file,
+        purpose: "assistants"
+      });
+      
+      console.log(`File uploaded successfully with ID: ${response.id}`);
+      
+      return response.id;
+    } catch (error) {
+      console.error("Error uploading file to OpenAI:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Adds a file to a vector store
+   * @param fileId - The OpenAI file ID
+   * @param vectorStoreId - The OpenAI vector store ID
+   * @returns True if successful
+   */
+  static async addFileToVectorStore(
+    fileId: string,
+    vectorStoreId: string
+  ): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      
+      console.log(`Adding file ${fileId} to vector store ${vectorStoreId}`);
+      
+      // Use fetch directly with beta headers since the SDK might not support this yet
+      const bearerToken = client.apiKey;
+      const response = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${bearerToken}`,
+          'OpenAI-Beta': 'vectors=v2'
+        },
+        body: JSON.stringify({
+          file_id: fileId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Error adding file to vector store: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to add file to vector store: ${response.statusText}`);
+      }
+      
+      console.log(`File added to vector store successfully`);
+      
+      return true;
+    } catch (error) {
+      console.error("Error adding file to vector store:", error);
+      throw error;
+    }
+  }
 } 
