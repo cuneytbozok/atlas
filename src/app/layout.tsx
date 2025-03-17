@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -30,6 +31,7 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider>
             {children}
+            <Toaster />
           </ThemeProvider>
         </AuthProvider>
       </body>

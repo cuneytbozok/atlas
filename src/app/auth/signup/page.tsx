@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { LucideAlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -24,7 +27,11 @@ export default function SignupPage() {
 
     // Validate passwords match
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      const errorMessage = "Passwords do not match";
+      setError(errorMessage);
+      toast.error("Validation Error", {
+        description: errorMessage
+      });
       setIsLoading(false);
       return;
     }
@@ -45,14 +52,25 @@ export default function SignupPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Failed to create account");
+        const errorMessage = data.message || "Failed to create account";
+        setError(errorMessage);
+        toast.error("Registration Failed", {
+          description: errorMessage
+        });
         return;
       }
 
       // Redirect to login page on success
+      toast.success("Account Created", {
+        description: "Your account has been created successfully. Please sign in."
+      });
       router.push("/auth/login?registered=true");
     } catch (err) {
-      setError("An unexpected error occurred");
+      const errorMessage = "An unexpected error occurred";
+      setError(errorMessage);
+      toast.error("System Error", {
+        description: errorMessage
+      });
     } finally {
       setIsLoading(false);
     }
@@ -68,6 +86,14 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4 animate-in fade-in-50 duration-300 border-destructive/50">
+              <LucideAlertCircle className="h-5 w-5" />
+              <AlertTitle className="font-semibold">Registration Error</AlertTitle>
+              <AlertDescription className="mt-1">{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
@@ -111,11 +137,6 @@ export default function SignupPage() {
                 required
               />
             </div>
-            {error && (
-              <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Creating account..." : "Create account"}
             </Button>

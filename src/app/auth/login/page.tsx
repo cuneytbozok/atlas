@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState, useEffect } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LucideAlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,18 +31,30 @@ export default function LoginPage() {
       switch (errorParam) {
         case "CredentialsSignin":
           setError("Invalid email or password. Please try again.");
+          toast.error("Login Failed", {
+            description: "Invalid email or password. Please try again."
+          });
           break;
         case "SessionRequired":
           setError("You need to be signed in to access that page.");
+          toast.error("Authentication Required", {
+            description: "You need to be signed in to access that page."
+          });
           break;
         default:
           setError("An authentication error occurred. Please try again.");
+          toast.error("Authentication Error", {
+            description: "An authentication error occurred. Please try again."
+          });
       }
     } else if (successParam) {
       // Handle success messages if needed
     } else if (registeredParam) {
       // Show a success message for newly registered users
       setError(""); // Clear any errors
+      toast.success("Registration Successful", {
+        description: "Your account has been created. Please sign in."
+      });
     }
   }, [searchParams]);
 
@@ -53,12 +66,18 @@ export default function LoginPage() {
     // Basic validation
     if (!email.trim()) {
       setError("Email is required");
+      toast.error("Validation Error", {
+        description: "Email is required"
+      });
       setIsLoading(false);
       return;
     }
 
     if (!password) {
       setError("Password is required");
+      toast.error("Validation Error", {
+        description: "Password is required"
+      });
       setIsLoading(false);
       return;
     }
@@ -69,17 +88,32 @@ export default function LoginPage() {
       if (!result.success) {
         // Map error codes to user-friendly messages
         if (result.error === "CredentialsSignin") {
-          setError("Invalid email or password. Please check your credentials and try again.");
+          const errorMessage = "Invalid email or password. Please check your credentials and try again.";
+          setError(errorMessage);
+          toast.error("Login Failed", {
+            description: errorMessage
+          });
         } else {
-          setError(result.error || "Failed to sign in. Please try again.");
+          const errorMessage = result.error || "Failed to sign in. Please try again.";
+          setError(errorMessage);
+          toast.error("Authentication Error", {
+            description: errorMessage
+          });
         }
         return;
       }
 
+      toast.success("Login Successful", {
+        description: "You have been signed in successfully."
+      });
       router.push("/");
     } catch (err) {
       console.error("Login error:", err);
-      setError("An unexpected error occurred. Please try again later.");
+      const errorMessage = "An unexpected error occurred. Please try again later.";
+      setError(errorMessage);
+      toast.error("System Error", {
+        description: errorMessage
+      });
     } finally {
       setIsLoading(false);
     }
@@ -96,10 +130,10 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           {error && (
-            <Alert variant="destructive" className="mb-4">
-              <LucideAlertCircle className="h-4 w-4" />
-              <AlertTitle>Authentication Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant="destructive" className="mb-4 animate-in fade-in-50 duration-300 border-destructive/50">
+              <LucideAlertCircle className="h-5 w-5" />
+              <AlertTitle className="font-semibold">Authentication Error</AlertTitle>
+              <AlertDescription className="mt-1">{error}</AlertDescription>
             </Alert>
           )}
           
