@@ -118,7 +118,7 @@ export async function PATCH(
     try {
       const body = await request.json();
       console.log("Project update request body:", body);
-      const { name, description, status } = body;
+      const { name, description, status, projectManagerId } = body;
 
       // Find the user
       const user = await prisma.user.findUnique({
@@ -197,10 +197,12 @@ export async function PATCH(
         name: name !== undefined ? name : undefined,
         description: description !== undefined ? description : undefined,
         status: status !== undefined ? status : undefined,
+        projectManagerId: projectManagerId !== undefined ? projectManagerId : undefined,
       });
 
       // Update the project
       try {
+        // First update the basic project details
         const updatedProject = await prisma.project.update({
           where: { id: projectId },
           data: {
@@ -226,9 +228,145 @@ export async function PATCH(
                   }
                 }
               }
+            },
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
             }
           }
         });
+
+        // Handle project manager assignment if provided
+        if (projectManagerId !== undefined) {
+          // If projectManagerId is empty, remove any existing project manager role
+          if (!projectManagerId) {
+            // Find current project manager
+            const currentProjectManager = updatedProject.members.find(
+              (member: { role: { name: string } }) => member.role.name === "PROJECT_MANAGER"
+            );
+
+            if (currentProjectManager) {
+              // Find the USER role
+              const userRole = await prisma.role.findFirst({
+                where: { name: "USER" }
+              });
+
+              if (userRole) {
+                // Downgrade the current project manager to a regular user
+                await prisma.projectMember.update({
+                  where: { id: currentProjectManager.id },
+                  data: { roleId: userRole.id }
+                });
+              }
+            }
+          } else {
+            // Find the member to promote to project manager
+            const memberToPromote = updatedProject.members.find(
+              (member: { user: { id: string } }) => member.user.id === projectManagerId
+            );
+
+            if (!memberToPromote) {
+              return NextResponse.json(
+                { message: "Selected user is not a member of this project" },
+                { status: 400 }
+              );
+            }
+
+            // Find the PROJECT_MANAGER role
+            const projectManagerRole = await prisma.role.findFirst({
+              where: { name: "PROJECT_MANAGER" }
+            });
+
+            if (!projectManagerRole) {
+              return NextResponse.json(
+                { message: "Project manager role not found" },
+                { status: 500 }
+              );
+            }
+
+            // Find current project manager (if any)
+            const currentProjectManager = updatedProject.members.find(
+              (member: { role: { name: string }, id: string }) => 
+                member.role.name === "PROJECT_MANAGER" && member.id !== memberToPromote.id
+            );
+
+            // If there's a different current project manager, downgrade them
+            if (currentProjectManager) {
+              const userRole = await prisma.role.findFirst({
+                where: { name: "USER" }
+              });
+
+              if (userRole) {
+                await prisma.projectMember.update({
+                  where: { id: currentProjectManager.id },
+                  data: { roleId: userRole.id }
+                });
+              }
+            }
+
+            // Promote the selected member to project manager
+            await prisma.projectMember.update({
+              where: { id: memberToPromote.id },
+              data: { roleId: projectManagerRole.id }
+            });
+
+            // Ensure the user has the PROJECT_MANAGER role at the system level
+            const hasProjectManagerRole = await prisma.userRole.findFirst({
+              where: {
+                userId: memberToPromote.user.id,
+                role: {
+                  name: "PROJECT_MANAGER"
+                }
+              }
+            });
+
+            if (!hasProjectManagerRole) {
+              await prisma.userRole.create({
+                data: {
+                  userId: memberToPromote.user.id,
+                  roleId: projectManagerRole.id
+                }
+              });
+            }
+          }
+
+          // Fetch the updated project with the new project manager
+          const finalProject = await prisma.project.findUnique({
+            where: { id: projectId },
+            include: {
+              members: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      image: true
+                    }
+                  },
+                  role: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              },
+              createdBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          });
+
+          return NextResponse.json(finalProject);
+        }
 
         return NextResponse.json(updatedProject);
       } catch (prismaError) {

@@ -291,7 +291,15 @@ export default function ProjectPage() {
       updatedProject.status = "active";
     }
     
-    setProject(updatedProject);
+    // Find the project manager (member with PROJECT_MANAGER role)
+    const projectManager = updatedProject.members.find(
+      (member: ProjectMember) => member.role.name === "PROJECT_MANAGER"
+    ) || null;
+    
+    setProject({
+      ...updatedProject,
+      projectManager
+    });
     setIsEditDialogOpen(false);
     toast.success("Project updated successfully");
   };
@@ -419,7 +427,113 @@ export default function ProjectPage() {
           <Separator />
 
           <div className="grid gap-6 md:grid-cols-3">
-            <Card>
+            <Card className="h-auto">
+              <CardHeader className="pb-2">
+                <div className="mb-2">
+                  <LucideFileText className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-base">Project Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+                    <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
+                    <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
+                    <p className="mt-1">{formattedCreatedDate}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
+                    <p className="mt-1">{formattedUpdatedDate}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="h-auto">
+              <CardHeader className="pb-2">
+                <div className="mb-2">
+                  <LucideUsers className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-base">Team Members</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {project.projectManager && (
+                    <div className="border-b pb-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {getInitials(project.projectManager)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-medium">{getDisplayName(project.projectManager)}</span>
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{getEmail(project.projectManager)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
+                    <>
+                      {project.members
+                        .filter(member => !project.projectManager || member.id !== project.projectManager.id)
+                        .slice(0, 3)
+                        .map((member, index) => (
+                          <div key={member.id || index} className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback>
+                                {getInitials(member)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="text-sm">{getDisplayName(member)}</span>
+                              <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      
+                      {project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length > 3 && (
+                        <div className="text-sm text-muted-foreground mt-2">
+                          +{project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length - 3} more team members
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No team members yet</p>
+                  )}
+                  
+                  <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full mt-2">
+                        <LucideUsers className="h-4 w-4 mr-2" />
+                        Manage Team
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                      <ManageTeamForm 
+                        project={project} 
+                        onMemberAdded={handleMemberAdded}
+                        onMemberRemoved={handleMemberRemoved}
+                        onClose={() => setIsManageTeamDialogOpen(false)} 
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="h-auto">
               <CardHeader className="pb-2">
                 <div className="mb-2">
                   <LucideUpload className="h-5 w-5 text-muted-foreground" />
@@ -428,7 +542,7 @@ export default function ProjectPage() {
               </CardHeader>
               <CardContent>
                 <div 
-                  className={`border-2 border-dashed rounded-lg p-4 text-center mb-4 transition-colors ${
+                  className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
                     isDragging 
                       ? "border-primary bg-primary/5" 
                       : "border-muted-foreground/20 hover:border-primary/50"
@@ -438,8 +552,8 @@ export default function ProjectPage() {
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                 >
-                  <LucideUpload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground mb-1">
                     Drag and drop files here or
                   </p>
                   <div>
@@ -459,7 +573,7 @@ export default function ProjectPage() {
                 </div>
 
                 {files.length > 0 && (
-                  <div className="space-y-3 mt-4">
+                  <div className="space-y-2 mt-3 max-h-[200px] overflow-y-auto">
                     {files.map(file => (
                       <div key={file.id} className="border rounded-md p-2">
                         <div className="flex items-center justify-between mb-1">
@@ -497,102 +611,13 @@ export default function ProjectPage() {
                 )}
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideUsers className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-base">Team Members</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
-                    project.members.map((member, index) => (
-                      <div key={member.id || index} className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>
-                            {getInitials(member)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm">{getDisplayName(member)}</span>
-                          <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No team members yet</p>
-                  )}
-                  
-                  <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full mt-2">
-                        <LucideUsers className="h-4 w-4 mr-2" />
-                        Manage Team
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
-                      <ManageTeamForm 
-                        project={project} 
-                        onMemberAdded={handleMemberAdded}
-                        onMemberRemoved={handleMemberRemoved}
-                        onClose={() => setIsManageTeamDialogOpen(false)} 
-                      />
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideFileText className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-base">Project Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-                    <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
-                    <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
-                  </div>
-                  {project.projectManager && (
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Project Manager</h3>
-                      <div className="mt-1 flex items-center gap-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback>
-                            {getInitials(project.projectManager)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{getDisplayName(project.projectManager)}</span>
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
-                    <p className="mt-1">{formattedCreatedDate}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
-                    <p className="mt-1">{formattedUpdatedDate}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="mt-6">
             <h2 className="text-h2 mb-4">Ask ATLAS</h2>
             <Card>
               <CardContent className="p-6">
-                <div className="text-center py-8">
+                <div className="text-center py-6">
                   <p className="text-muted-foreground">Connect with ATLAS AI to assist with your project</p>
                   <Button variant="outline" className="mt-4">Start Conversation</Button>
                 </div>
@@ -616,9 +641,41 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
     name: project.name,
     description: project.description || "",
     status: project.status,
+    projectManagerId: project.projectManager?.user.id || "none"
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<ProjectMember[]>(project.members || []);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+
+  // Fetch team members when the component mounts
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      try {
+        setIsLoadingMembers(true);
+        const response = await fetch(`/api/projects/${project.id}/members`);
+        if (!response.ok) throw new Error('Failed to fetch team members');
+        const data = await response.json();
+        setTeamMembers(data);
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    };
+
+    fetchTeamMembers();
+  }, [project.id]);
+
+  // Update form data when project changes
+  useEffect(() => {
+    setFormData({
+      name: project.name,
+      description: project.description || "",
+      status: project.status,
+      projectManagerId: project.projectManager?.user.id || "none"
+    });
+  }, [project]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -632,6 +689,13 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
     setFormData(prev => ({
       ...prev,
       status: value
+    }));
+  };
+
+  const handleProjectManagerChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      projectManagerId: value
     }));
   };
 
@@ -656,14 +720,22 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
           break;
         }
 
-        console.log(`Submitting project update (attempt ${retryCount + 1}/${maxRetries + 1}):`, formData);
+        // Create a copy of the form data to modify before sending
+        const dataToSend = { ...formData };
+        
+        // Convert "none" to empty string for the API
+        if (dataToSend.projectManagerId === "none") {
+          dataToSend.projectManagerId = "";
+        }
+
+        console.log(`Submitting project update (attempt ${retryCount + 1}/${maxRetries + 1}):`, dataToSend);
         
         const response = await fetch(`/api/projects/${project.id}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(dataToSend),
         });
 
         // Check if the response is JSON
@@ -758,6 +830,32 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
             </SelectContent>
           </Select>
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="projectManager">Project Manager</Label>
+          <Select 
+            value={formData.projectManagerId} 
+            onValueChange={handleProjectManagerChange}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select project manager" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {isLoadingMembers ? (
+                <div className="flex items-center justify-center p-2">
+                  <LucideLoader className="h-4 w-4 animate-spin mr-2" />
+                  <span>Loading team members...</span>
+                </div>
+              ) : (
+                teamMembers.map(member => (
+                  <SelectItem key={member.user.id} value={member.user.id}>
+                    {member.user.name || member.user.email}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -783,51 +881,6 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<ProjectMember | null>(null);
-  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
-  const [roles, setRoles] = useState<{id: string, name: string, displayName: string, description: string | null}[]>([]);
-  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-
-  // Fetch project roles when the role dialog opens
-  useEffect(() => {
-    if (isRoleDialogOpen) {
-      fetchRoles();
-    }
-  }, [isRoleDialogOpen]);
-
-  // Fetch available roles from the database
-  const fetchRoles = async () => {
-    setIsLoadingRoles(true);
-    try {
-      // Fetch roles from the database with project context
-      const response = await fetch('/api/roles?context=project');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch roles');
-      }
-      
-      const projectRoles = await response.json();
-      setRoles(projectRoles);
-    } catch (err) {
-      console.error("Error fetching roles:", err);
-      
-      // Fallback to hardcoded roles if API fails
-      const fallbackRoles = [
-        { id: "ADMIN", name: "ADMIN", displayName: "Administrator", description: "Full access to the project" },
-        { id: "PROJECT_MANAGER", name: "PROJECT_MANAGER", displayName: "Project Manager", description: "Can manage the project" },
-        { id: "USER", name: "USER", displayName: "Team Member", description: "Regular team member" }
-      ];
-      
-      setRoles(fallbackRoles);
-      
-      toast.error("Error", {
-        description: "Failed to fetch roles, using default values"
-      });
-    } finally {
-      setIsLoadingRoles(false);
-    }
-  };
 
   const handleSearch = async (query: string) => {
     if (query.length < 2) {
@@ -900,7 +953,7 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
 
   const handleRemoveMember = async (memberId: string) => {
     try {
-      const response = await fetch(`/api/projects/${project.id}/members?memberId=${memberId}`, {
+      const response = await fetch(`/api/projects/${project.id}/members/${memberId}`, {
         method: "DELETE",
       });
 
@@ -918,251 +971,144 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
     }
   };
 
-  const handleUpdateRole = async (roleId: string) => {
-    if (!selectedMember) return;
-    
-    setIsUpdatingRole(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/members/${selectedMember.id}/role`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roleId,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to update member role");
-      }
-
-      const data = await response.json();
-      
-      // Update the member in the project
-      const updatedMembers = project.members.map(member => {
-        if (member.id === selectedMember.id) {
-          return {
-            ...member,
-            role: data.role
-          };
-        }
-        return member;
-      });
-      
-      // Update project with new members
-      project.members = updatedMembers;
-      
-      // Update project manager if needed
-      if (data.role.name === "PROJECT_MANAGER") {
-        project.projectManager = {
-          ...selectedMember,
-          role: data.role
-        };
-      } else if (selectedMember.role.name === "PROJECT_MANAGER") {
-        project.projectManager = null;
-      }
-      
-      toast.success("Member role updated successfully");
-      setIsRoleDialogOpen(false);
-    } catch (err) {
-      console.error("Error updating member role:", err);
-      toast.error("Error", {
-        description: err instanceof Error ? err.message : "Failed to update member role"
-      });
-    } finally {
-      setIsUpdatingRole(false);
-    }
-  };
-
   return (
     <div>
       <DialogHeader>
         <DialogTitle>Manage Team</DialogTitle>
         <DialogDescription>
-          Add or remove team members from your project.
+          Add or remove team members from this project.
         </DialogDescription>
       </DialogHeader>
-      <div className="grid gap-4 py-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <div className="grid gap-2">
-          <Label>Add Team Member</Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+      
+      <div className="mt-4 space-y-4">
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="search-user">Add Team Member</Label>
+            <div className="flex gap-2">
               <Input
-                placeholder="Search users by name or email"
+                id="search-user"
+                placeholder="Search by name or email"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                  }
-                }}
-                className="pr-8"
+                className="flex-1"
               />
-              {isSearching && (
-                <div className="absolute right-2 top-2">
-                  <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              )}
-              {searchQuery && !isSearching && (
-                <div className="absolute right-2 top-2 cursor-pointer" onClick={() => {
-                  setSearchQuery('');
-                  setSearchResults([]);
-                }}>
-                  <LucideX className="h-4 w-4 text-muted-foreground" />
-                </div>
+              {searchQuery && (
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <LucideX className="h-4 w-4" />
+                </Button>
               )}
             </div>
-            <Button type="button" onClick={onClose}>
-              Done
-            </Button>
           </div>
+          
+          {isSearching && (
+            <div className="flex justify-center py-2">
+              <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          )}
+          
           {searchResults.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-black ring-opacity-5">
+            <div className="border rounded-md divide-y max-h-[200px] overflow-y-auto">
               {searchResults.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => handleAddMember(user)}
-                >
+                <div key={user.id} className="flex items-center justify-between p-2">
                   <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
+                    <Avatar className="h-8 w-8">
                       <AvatarFallback>
                         {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex flex-col">
-                      <span>{user.name || 'No name'}</span>
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    <div>
+                      <p className="text-sm font-medium">{user.name || "No name"}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
-                </button>
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    onClick={() => handleAddMember(user)}
+                  >
+                    Add
+                  </Button>
+                </div>
               ))}
             </div>
           )}
+          
           {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-            <div className="mt-2 text-sm text-muted-foreground">
+            <div className="text-center py-2 text-sm text-muted-foreground">
               No users found. Try a different search term.
             </div>
           )}
         </div>
-
-        <div className="grid gap-2">
-          <Label>Current Team Members</Label>
-          {project.members && project.members.length > 0 ? (
-            <div className="space-y-2">
-              {project.members.map((member) => (
-                <div key={member.id} className="flex items-center justify-between rounded-md border p-2">
+        
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Current Team Members</h3>
+          
+          {project.members.length === 0 ? (
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              No team members yet
+            </div>
+          ) : (
+            <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
+              {project.projectManager && (
+                <div className="flex items-center justify-between p-2 bg-muted/30">
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback>
-                        {getInitials(member)}
+                        {getInitials(project.projectManager)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium">{getDisplayName(member)}</div>
-                      <div className="text-sm text-muted-foreground">{getEmail(member)}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={member.role.name === "PROJECT_MANAGER" ? "default" : "outline"}>
-                      {member.role.name}
-                    </Badge>
-                    <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => {
-                          setSelectedMember(member);
-                          setIsRoleDialogOpen(true);
-                        }}
-                      >
-                        <LucideSettings className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleRemoveMember(member.id)}
-                      >
-                        <LucideX className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-medium">{getDisplayName(project.projectManager)}</p>
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{getEmail(project.projectManager)}</p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No team members yet. Add members using the search above.
+              )}
+              
+              {project.members
+                .filter(member => !project.projectManager || member.id !== project.projectManager.id)
+                .map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-2">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {getInitials(member)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{getDisplayName(member)}</p>
+                        <p className="text-xs text-muted-foreground">{getEmail(member)}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveMember(member.id)}
+                    >
+                      <LucideTrash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* Role Dialog */}
-      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Change Member Role</DialogTitle>
-            <DialogDescription>
-              {selectedMember && `Update role for ${getDisplayName(selectedMember)}`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="role">Role</Label>
-              <Select 
-                defaultValue={selectedMember?.role.id} 
-                onValueChange={(value) => handleUpdateRole(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isLoadingRoles ? (
-                    <div className="flex items-center justify-center p-2">
-                      <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
-                      <span className="text-sm">Loading roles...</span>
-                    </div>
-                  ) : (
-                    roles.map(role => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.displayName || role.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsRoleDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              disabled={isUpdatingRole}
-              onClick={() => {
-                if (selectedMember && selectedMember.role.id) {
-                  handleUpdateRole(selectedMember.role.id);
-                }
-              }}
-            >
-              {isUpdatingRole ? "Updating..." : "Update Role"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      
+      <DialogFooter className="mt-6">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Done
+        </Button>
+      </DialogFooter>
     </div>
   );
 }
