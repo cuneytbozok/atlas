@@ -1,7 +1,7 @@
 "use client";
 
 import { MainLayout } from "@/components/layout/main-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -25,20 +25,12 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Account Settings</CardTitle>
-                <CardDescription>
-                  Manage your account security and preferences
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-2">
                   <Button asChild variant="outline" className="justify-start">
                     <Link href="/settings/password">
                       Change Password
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="justify-start">
-                    <Link href="/settings/notifications">
-                      Notification Preferences
                     </Link>
                   </Button>
                 </div>
@@ -48,32 +40,27 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>System Information</CardTitle>
-                <CardDescription>
-                  View information about your account
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Name:</span>
-                    <span className="font-medium">{user?.name || 'Not set'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email:</span>
-                    <span className="font-medium">{user?.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Roles:</span>
-                    <div className="flex flex-wrap gap-1 justify-end">
-                      {user?.roles?.map((role) => (
-                        <span 
-                          key={role} 
-                          className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full text-xs"
-                        >
-                          {role}
-                        </span>
-                      ))}
-                    </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Name</h3>
+                  <p className="mt-1">{user?.name || 'No name set'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Email</h3>
+                  <p className="mt-1">{user?.email}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Roles</h3>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {user?.roles?.map((role) => (
+                      <span 
+                        key={role} 
+                        className="bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-sm"
+                      >
+                        {role}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </CardContent>

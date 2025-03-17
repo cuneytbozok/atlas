@@ -69,11 +69,6 @@ export default function ProfilePage() {
                       Change Password
                     </Link>
                   </Button>
-                  <Button asChild variant="outline" className="justify-start">
-                    <Link href="/settings/notifications">
-                      Notification Preferences
-                    </Link>
-                  </Button>
                 </div>
               </CardContent>
             </Card>
