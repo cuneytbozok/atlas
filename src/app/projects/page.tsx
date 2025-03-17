@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect } from "react";
-import { LucideUserPlus, LucideSearch, LucideLoader } from "lucide-react";
+import { LucideUserPlus, LucideSearch, LucideLoader, LucideX } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -56,6 +56,7 @@ interface ProjectMember {
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +72,7 @@ export default function ProjectsPage() {
       }
       const data = await response.json();
       setProjects(data);
+      setFilteredProjects(data);
     } catch (err) {
       console.error("Error fetching projects:", err);
       setError("An error occurred while fetching your projects. Please try again.");
@@ -86,9 +88,25 @@ export default function ProjectsPage() {
     fetchProjects();
   }, [statusFilter]);
 
+  // Filter projects when search query changes
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProjects(projects);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = projects.filter(project => 
+      project.name.toLowerCase().includes(query) || 
+      (project.description && project.description.toLowerCase().includes(query))
+    );
+    
+    setFilteredProjects(filtered);
+  }, [searchQuery, projects]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchProjects();
+    // The filtering is now handled by the useEffect above
   };
 
   const handleCreateSuccess = (newProject: Project) => {
@@ -127,10 +145,20 @@ export default function ProjectsPage() {
                 <Input
                   type="search"
                   placeholder="Search projects..."
-                  className="pl-8"
+                  className="pl-8 pr-8"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <LucideX className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </form>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value)}>
@@ -159,9 +187,14 @@ export default function ProjectsPage() {
               <p className="text-muted-foreground mb-4">No projects found</p>
               <Button onClick={() => setIsDialogOpen(true)}>Create Your First Project</Button>
             </div>
+          ) : filteredProjects.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">No projects match your search criteria</p>
+              <Button variant="outline" onClick={() => setSearchQuery("")}>Clear Search</Button>
+            </div>
           ) : (
             <div className="grid gap-4">
-              {projects.map((project) => (
+              {filteredProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} />
               ))}
             </div>

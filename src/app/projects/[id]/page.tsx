@@ -602,15 +602,15 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = async () => {
-    if (searchQuery.length < 2) {
+  const handleSearch = async (query: string) => {
+    if (query.length < 2) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
     try {
-      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error('Failed to search users');
       const data = await response.json();
       // Filter out users who are already members
@@ -627,10 +627,18 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
     }
   };
 
-  const handleSelectUser = (user: User) => {
-    setSearchQuery("");
-    setSearchResults([]);
-  };
+  // Use effect with debounce for search
+  useEffect(() => {
+    const debounceTimeout = setTimeout(() => {
+      if (searchQuery) {
+        handleSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(debounceTimeout);
+  }, [searchQuery, project.members]);
 
   const handleAddMember = async (user: User) => {
     try {
@@ -650,6 +658,10 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
         throw new Error(data.message || "Failed to add team member");
       }
 
+      // Clear search query and results after successful addition
+      setSearchQuery("");
+      setSearchResults([]);
+      
       onMemberAdded(data);
     } catch (err) {
       console.error("Error adding team member:", err);
@@ -700,15 +712,26 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
               <Input
                 placeholder="Search users by name or email"
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  handleSearch();
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }
                 }}
                 className="pr-8"
               />
               {isSearching && (
                 <div className="absolute right-2 top-2">
                   <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {searchQuery && !isSearching && (
+                <div className="absolute right-2 top-2 cursor-pointer" onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}>
+                  <LucideX className="h-4 w-4 text-muted-foreground" />
                 </div>
               )}
             </div>
@@ -738,6 +761,11 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
                   </div>
                 </button>
               ))}
+            </div>
+          )}
+          {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              No users found. Try a different search term.
             </div>
           )}
         </div>
