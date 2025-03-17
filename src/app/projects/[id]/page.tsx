@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useRouter } from "next/navigation";
-import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX } from "lucide-react";
+import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -42,6 +42,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
 
 interface ProjectMember {
   id: string;
@@ -102,6 +103,17 @@ const getEmail = (member: ProjectMember): string => {
   return member.user.email;
 };
 
+// Add a FileUpload interface
+interface FileUpload {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  progress: number;
+  status: 'uploading' | 'complete' | 'error';
+  error?: string;
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
@@ -113,6 +125,99 @@ export default function ProjectPage() {
   const [isManageTeamDialogOpen, setIsManageTeamDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [files, setFiles] = useState<FileUpload[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // File upload handlers
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    handleFiles(droppedFiles);
+  }, []);
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const selectedFiles = Array.from(e.target.files);
+      handleFiles(selectedFiles);
+      // Reset the input value so the same file can be uploaded again if needed
+      e.target.value = '';
+    }
+  };
+
+  const handleFiles = (newFiles: File[]) => {
+    const newUploads = newFiles.map(file => ({
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      progress: 0,
+      status: 'uploading' as const
+    }));
+
+    setFiles(prev => [...prev, ...newUploads]);
+
+    // Simulate upload progress for each file
+    newUploads.forEach(fileUpload => {
+      simulateFileUpload(fileUpload.id);
+    });
+  };
+
+  const simulateFileUpload = (fileId: string) => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.floor(Math.random() * 10) + 5;
+      
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        
+        setFiles(prev => 
+          prev.map(file => 
+            file.id === fileId 
+              ? { ...file, progress: 100, status: 'complete' } 
+              : file
+          )
+        );
+        
+        toast.success("File uploaded", {
+          description: "File has been uploaded successfully"
+        });
+      } else {
+        setFiles(prev => 
+          prev.map(file => 
+            file.id === fileId 
+              ? { ...file, progress } 
+              : file
+          )
+        );
+      }
+    }, 300);
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+    setFiles(prev => prev.filter(file => file.id !== fileId));
+    toast.info("File removed");
+  };
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -319,21 +424,79 @@ export default function ProjectPage() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="mb-2">
-                  <LucideCalendar className="h-5 w-5 text-muted-foreground" />
+                  <LucideUpload className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <CardTitle className="text-base">Timeline</CardTitle>
+                <CardTitle className="text-base">Files</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created</span>
-                    <span>{formattedCreatedDate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Updated</span>
-                    <span>{formattedUpdatedDate}</span>
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-4 text-center mb-4 transition-colors ${
+                    isDragging 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted-foreground/20 hover:border-primary/50"
+                  }`}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
+                  <LucideUpload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Drag and drop files here or
+                  </p>
+                  <div>
+                    <label htmlFor="file-upload" className="cursor-pointer">
+                      <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
+                        Browse Files
+                      </Button>
+                      <input
+                        id="file-upload"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileInputChange}
+                      />
+                    </label>
                   </div>
                 </div>
+
+                {files.length > 0 && (
+                  <div className="space-y-3 mt-4">
+                    {files.map(file => (
+                      <div key={file.id} className="border rounded-md p-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2 truncate">
+                            <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm truncate">{file.name}</span>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6" 
+                            onClick={() => handleRemoveFile(file.id)}
+                          >
+                            <LucideTrash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="w-full">
+                          <Progress value={file.progress} className="h-1" />
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {formatFileSize(file.size)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {file.status === 'uploading' 
+                              ? `${file.progress}%` 
+                              : file.status === 'complete' 
+                                ? 'Complete' 
+                                : 'Error'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -400,6 +563,14 @@ export default function ProjectPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Team Size</span>
                     <span>{(project.members && Array.isArray(project.members) ? project.members.length : 0)} members</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Created</span>
+                    <span>{formattedCreatedDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <span>{formattedUpdatedDate}</span>
                   </div>
                 </div>
               </CardContent>
@@ -807,4 +978,15 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
       </div>
     </div>
   );
+}
+
+// Helper function to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 } 
