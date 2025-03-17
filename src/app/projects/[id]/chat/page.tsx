@@ -11,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X } from "lucide-react";
+import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import Link from "next/link";
 
 interface Thread {
   id: string;
@@ -325,7 +326,14 @@ export default function ProjectChatPage() {
         {/* Thread List Sidebar */}
         <div className="w-80 flex-shrink-0 bg-muted/30 border-r p-4 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Chats</h2>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" asChild className="h-7 w-7 mr-1">
+                <Link href={`/projects/${projectId}`}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
+              <h2 className="text-xl font-semibold">Chats</h2>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setNewThreadDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New Chat

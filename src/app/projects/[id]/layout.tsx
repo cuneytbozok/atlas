@@ -4,7 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useEffect, useState, createContext, useContext } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProjectSidebar } from "@/components/layout/project-sidebar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { cn } from "@/lib/utils";
@@ -123,9 +122,6 @@ export default function ProjectMainLayout({
           <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar />
             <div className="flex flex-1 overflow-hidden">
-              <div className="border-r bg-muted/20 w-56 overflow-y-auto">
-                <ProjectSidebar />
-              </div>
               <main className="flex-1 overflow-auto p-6">
                 {children}
               </main>

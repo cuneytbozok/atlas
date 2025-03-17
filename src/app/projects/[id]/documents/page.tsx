@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { LucideUpload, LucideFile, LucideTrash, LucideX } from "lucide-react";
+import { LucideUpload, LucideFile, LucideTrash, LucideX, LucideArrowLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import Link from "next/link";
 
 interface FileUpload {
   id: string;
@@ -52,11 +53,12 @@ export default function ProjectDocumentsPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch files');
       }
+      
       const data = await response.json();
       setFiles(data);
     } catch (error) {
       console.error('Error fetching files:', error);
-      toast.error('Failed to load project files');
+      toast.error('Failed to load files');
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +71,6 @@ export default function ProjectDocumentsPage() {
   };
 
   const handleFiles = (newFiles: File[]) => {
-    // Create upload entries
     const newUploads = newFiles.map(file => ({
       id: crypto.randomUUID(),
       name: file.name,
@@ -81,22 +82,20 @@ export default function ProjectDocumentsPage() {
     
     setUploads(prev => [...prev, ...newUploads]);
     
-    // Simulate upload process for each file
-    newFiles.forEach((file, index) => {
-      simulateFileUpload(newUploads[index].id, file);
+    // Process each file
+    newUploads.forEach(upload => {
+      simulateFileUpload(upload.id, newFiles.find(f => f.name === upload.name)!);
     });
   };
 
   const simulateFileUpload = (fileId: string, file: File) => {
     let progress = 0;
     const interval = setInterval(() => {
-      progress += Math.random() * 10;
+      progress += Math.floor(Math.random() * 10) + 5;
       
       if (progress >= 100) {
-        progress = 100;
         clearInterval(interval);
         
-        // Update upload status to complete
         setUploads(prev => 
           prev.map(upload => 
             upload.id === fileId 
@@ -105,24 +104,16 @@ export default function ProjectDocumentsPage() {
           )
         );
         
-        // Add file to the files list
-        const newFile: ProjectFile = {
-          id: fileId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          createdAt: new Date().toISOString()
-        };
-        
-        setFiles(prev => [...prev, newFile]);
-        
-        // Remove from uploads after a delay
         setTimeout(() => {
+          // Remove completed upload from list after a short delay
           setUploads(prev => prev.filter(upload => upload.id !== fileId));
-          toast.success(`File "${file.name}" uploaded successfully`);
+          
+          // Add to files list and refresh
+          fetchFiles();
+          
+          toast.success('File uploaded successfully');
         }, 2000);
       } else {
-        // Update progress
         setUploads(prev => 
           prev.map(upload => 
             upload.id === fileId 
@@ -146,7 +137,7 @@ export default function ProjectDocumentsPage() {
     if (!fileToDelete) return;
     
     try {
-      // Simulate API call
+      // Simulate API call to delete file
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Remove file from state
@@ -173,23 +164,31 @@ export default function ProjectDocumentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-display">Project Documents</h1>
-        <p className="text-muted-foreground mt-1">
-          Upload and manage documents for your project
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-display">Project Documents</h1>
+          <p className="text-muted-foreground mt-1">
+            Upload and manage documents for your project
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href={`/projects/${projectId}`} className="flex items-center gap-2">
+            <LucideArrowLeft className="h-4 w-4" />
+            Back to Project
+          </Link>
+        </Button>
       </div>
       
-      {/* Upload Section */}
+      {/* Combined Documents Card */}
       <Card>
-        <CardHeader>
-          <CardTitle>Upload Documents</CardTitle>
-          <CardDescription>
-            Upload files to use with your project assistant
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Project Documents</CardTitle>
+              <CardDescription>
+                Documents available for your project assistant
+              </CardDescription>
+            </div>
             <Input
               type="file"
               multiple
@@ -197,29 +196,21 @@ export default function ProjectDocumentsPage() {
               className="hidden"
               id="file-upload"
             />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <div className="flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-primary/50 px-6 py-10 text-center hover:bg-muted/50 transition-colors">
-                <div className="space-y-2">
-                  <div className="flex justify-center">
-                    <LucideUpload className="h-10 w-10 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-base font-medium">
-                      Click to upload or drag and drop
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      PDF, DOCX, TXT, and other documents (max 10MB)
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <label htmlFor="file-upload">
+              <Button variant="outline" size="sm" className="cursor-pointer" asChild>
+                <span>
+                  <LucideUpload className="h-4 w-4 mr-2" />
+                  Upload Files
+                </span>
+              </Button>
             </label>
           </div>
-          
-          {/* Upload Progress */}
+        </CardHeader>
+        <CardContent>
+          {/* Show uploads if there are any */}
           {uploads.length > 0 && (
-            <div className="mt-6 space-y-4">
-              <h3 className="text-base font-medium">Uploading {uploads.length} file(s)</h3>
+            <div className="mb-6 border rounded-md p-4 bg-muted/30">
+              <h3 className="text-base font-medium mb-4">Uploading {uploads.length} file(s)</h3>
               <div className="space-y-3">
                 {uploads.map(upload => (
                   <div key={upload.id} className="flex items-center gap-4">
@@ -246,18 +237,8 @@ export default function ProjectDocumentsPage() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-      
-      {/* Files List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Documents</CardTitle>
-          <CardDescription>
-            Documents available for your project assistant
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          
+          {/* Files List */}
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-16 w-full" />
