@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useRouter } from "next/navigation";
-import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings, LucideBrain, LucideMessageSquare, MessagesSquare } from "lucide-react";
+import { LucideCalendar, LucideUsers, LucideFileText, LucideLoader, LucideSearch, LucideUserPlus, LucideX, LucideUpload, LucideFile, LucideTrash, LucideSettings, LucideBrain, LucideMessageSquare, MessagesSquare, LucidePencil } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useEffect, useState, useCallback } from "react";
@@ -107,6 +107,20 @@ const getEmail = (member: ProjectMember): string => {
   return member.user.email;
 };
 
+// Helper function to find the project manager in a project
+const findProjectManager = (project: Project): ProjectMember | null => {
+  if (project.projectManager) return project.projectManager;
+  
+  if (project.members) {
+    // Find the member with PROJECT_MANAGER role
+    return project.members.find(member => 
+      member.role && member.role.name === "PROJECT_MANAGER"
+    ) || null;
+  }
+  
+  return null;
+};
+
 // Add a FileUpload interface
 interface FileUpload {
   id: string;
@@ -159,6 +173,7 @@ export default function ProjectPage() {
     status: 'pending' | 'inProgress' | 'completed' | 'error';
   }>>([]);
   const [canManageFiles, setCanManageFiles] = useState(false);
+  const [canEditProject, setCanEditProject] = useState(false);
 
   // Add effect to scroll to ATLAS AI section when hash is present
   useEffect(() => {
@@ -182,26 +197,22 @@ export default function ProjectPage() {
   }, []);
 
   useEffect(() => {
-    if (project) {
-      // Check if user is admin or project manager
-      const checkFilePermissions = async () => {
-        // Admin can always manage files
+    if (project && user) {
+      // Check user permissions
+      const checkPermissions = async () => {
+        // Admin can always manage files and edit project
         const isAdmin = hasRole('ADMIN');
         
-        if (isAdmin) {
-          setCanManageFiles(true);
-          return;
-        }
-        
         // Check if user is a project manager
-        const isProjectManager = project.projectManager?.user.id === user?.id;
+        const isProjectManager = project.projectManager?.user.id === user.id;
         
         setCanManageFiles(isAdmin || isProjectManager);
+        setCanEditProject(isAdmin || isProjectManager);
       };
       
-      checkFilePermissions();
+      checkPermissions();
     }
-  }, [project, hasRole, user]);
+  }, [project, user, hasRole]);
 
   // File upload handlers
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -455,17 +466,17 @@ export default function ProjectPage() {
 
   if (error || !project) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-h1 mb-2">Project Not Found</h1>
-          <p className="text-muted-foreground mb-4">
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <h1 className="text-h1 mb-2">Project Not Found</h1>
+              <p className="text-muted-foreground mb-4">
             {error || "The project you are looking for does not exist or has been removed."}
-          </p>
-          <Button asChild>
-            <Link href="/projects">Back to Projects</Link>
-          </Button>
-        </div>
-      </div>
+              </p>
+              <Button asChild>
+                <Link href="/projects">Back to Projects</Link>
+              </Button>
+            </div>
+          </div>
     );
   }
 
@@ -474,7 +485,7 @@ export default function ProjectPage() {
 
   // Main return for the project page
   return (
-    <div className="space-y-6">
+        <div className="space-y-6">
       <div className="space-y-2 mb-6">
         <h1 className="text-display">Project Overview</h1>
         <p className="text-muted-foreground text-lg">
@@ -482,259 +493,70 @@ export default function ProjectPage() {
         </p>
       </div>
       
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
             <h2 className="text-h2">{project.name}</h2>
             {project.status && (
-              <div className={`rounded-full px-3 py-1 text-sm ${
-                project.status === "active" 
-                  ? "bg-success/20 text-success" 
-                  : project.status === "completed" 
-                    ? "bg-info/20 text-info" 
-                    : "bg-muted text-muted-foreground"
-              }`}>
+                <div className={`rounded-full px-3 py-1 text-sm ${
+                  project.status === "active" 
+                    ? "bg-success/20 text-success" 
+                    : project.status === "completed" 
+                      ? "bg-info/20 text-info" 
+                      : "bg-muted text-muted-foreground"
+                }`}>
                 {safeCharAt(project.status, 0) + (project.status.slice(1) || '')}
-              </div>
+                </div>
             )}
-          </div>
-          <p className="text-muted-foreground mt-1">
-            {project.description || "No description provided"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="secondary">
-            <Link href={`/projects/${project.id}/chat`}>
-              <MessagesSquare className="h-4 w-4 mr-2" />
-              Chat
-            </Link>
-          </Button>
-          
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">Edit Project</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <div className="p-4 text-center">
-                <h3 className="text-lg font-medium mb-2">Edit Project</h3>
-                <p className="text-muted-foreground mb-4">Project editing functionality will be implemented here.</p>
-                <Button onClick={handleProjectUpdated} className="mt-4">Save Changes</Button>
               </div>
-            </DialogContent>
-          </Dialog>
-
-          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">Delete</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the project
-                  and all associated data.
-                </AlertDialogDescription>
-                <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                  <p className="font-medium mb-2">The following will be deleted:</p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Project data and settings</li>
-                    <li>Team member associations</li>
-                    <li>All chat history and interactions</li>
-                    {project.vectorStoreId && (
-                      <li>
-                        Associated vector store{" "}
-                        <span className="text-xs opacity-70">(used for file search)</span>
-                      </li>
-                    )}
-                    {project.assistantId && (
-                      <li>
-                        Associated assistant{" "}
-                        <span className="text-xs opacity-70">(AI chat capabilities)</span>
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleDeleteProject}
-                  disabled={isDeleting}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {isDeleting ? "Deleting..." : "Delete"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          
-          {hasRole("ADMIN") && (
-            <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <LucideSettings className="h-4 w-4 mr-2" />
-                  Debug Info
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Project Debug Information</DialogTitle>
-                  <DialogDescription>
-                    Technical details for this project's AI resources
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div>
-                    <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
-                    <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                      {project.vectorStoreId || "Not available"}
-                    </code>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
-                    <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                      {project.assistantId || "Not available"}
-                    </code>
-                  </div>
-                  
-                  {(project.vectorStoreId && project.assistantId) ? (
-                    <div className="mt-4">
-                      <h3 className="text-sm font-medium mb-1">Connection Status</h3>
-                      <div className="flex items-center">
-                        <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                        <p className="text-sm text-muted-foreground">Vector store and assistant are linked</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        If you're experiencing issues with file search or context, you may need to recreate the AI resources.
-                      </p>
-                      
-                      <Button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch('/api/admin/projects/verify-ai-connection', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                projectId: project.id
-                              })
-                            });
-                            
-                            const data = await response.json();
-                            
-                            if (response.ok) {
-                              if (data.isConnected) {
-                                toast.success('Connection verified', {
-                                  description: 'The assistant is properly connected to the vector store'
-                                });
-                              } else {
-                                toast.error('Connection issue detected', {
-                                  description: 'The assistant is not properly connected to the vector store'
-                                });
-                              }
-                              
-                              // Show detailed results in console for debugging
-                              console.log('Vector store connection verification:', data);
-                            } else {
-                              throw new Error(data.message || 'Failed to verify connection');
-                            }
-                          } catch (err) {
-                            console.error('Error verifying connection:', err);
-                            toast.error('Error', {
-                              description: err instanceof Error ? err.message : 'Failed to verify connection'
-                            });
-                          }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="mt-4 w-full"
-                      >
-                        Verify Connection
-                      </Button>
-                    </div>
-                  ) : null}
-                  
-                  {(!project.vectorStoreId || !project.assistantId) && (
-                    <div className="mt-6">
-                      <Button
-                        onClick={async () => {
-                          try {
-                            setIsCreatingAiResources(true);
-                            const response = await fetch('/api/admin/projects/setup-ai', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                projectId: project.id
-                              })
-                            });
-                            
-                            if (!response.ok) {
-                              const data = await response.json();
-                              throw new Error(data.message || 'Failed to set up AI resources');
-                            }
-                            
-                            await refreshProject();
-                            toast.success('AI resources created successfully');
-                          } catch (err) {
-                            console.error('Error setting up AI resources:', err);
-                            toast.error('Error', {
-                              description: err instanceof Error ? err.message : 'Failed to set up AI resources'
-                            });
-                          } finally {
-                            setIsCreatingAiResources(false);
-                          }
-                        }}
-                        variant="default"
-                        className="w-full"
-                        disabled={isCreatingAiResources}
-                      >
-                        {isCreatingAiResources ? (
-                          <>
-                            <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                            Creating AI Resources...
-                          </>
-                        ) : (
-                          'Create AI Resources'
-                        )}
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        This will attempt to create missing vector store and assistant resources for this project.
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <DialogFooter className="mt-6">
-                  <Button 
-                    onClick={() => setIsDebugModalOpen(false)}
-                  >
-                    Close
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-              <LucideFileText className="h-5 w-5 text-muted-foreground" />
+              <p className="text-muted-foreground mt-1">
+            {project.description || "No description provided"}
+              </p>
             </div>
+            <div className="flex gap-2">
+              <Button asChild variant="secondary">
+                <Link href={`/projects/${project.id}/chat`}>
+                  <MessagesSquare className="h-4 w-4 mr-2" />
+                  Chat
+                </Link>
+              </Button>
+              
+              {canEditProject && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsEditDialogOpen(true)}
+                >
+                  <LucidePencil className="mr-2 h-4 w-4" />
+                  Edit Project
+                </Button>
+              )}
+
+              <Button 
+                variant="destructive" 
+                onClick={() => setIsDeleteDialogOpen(true)}
+              >
+                <LucideTrash className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-6 md:grid-cols-3">
+        <Card className="h-auto">
+              <CardHeader className="pb-2">
+                <div className="mb-2">
+              <LucideFileText className="h-5 w-5 text-muted-foreground" />
+                </div>
             <CardTitle className="text-base">Project Details</CardTitle>
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
                 <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
-              </div>
+                  </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
                 <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
@@ -746,63 +568,73 @@ export default function ProjectPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
                 <p className="mt-1">{formattedUpdatedDate}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-              <LucideUsers className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <CardTitle className="text-base">Team Members</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {project.projectManager && (
-                <div className="border-b pb-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>
-                        {getInitials(project.projectManager)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-medium">{getDisplayName(project.projectManager)}</span>
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{getEmail(project.projectManager)}</span>
-                    </div>
                   </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+
+        <Card className="h-auto">
+              <CardHeader className="pb-2">
+                <div className="mb-2">
+                  <LucideUsers className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-base">Team Members</CardTitle>
+              </CardHeader>
+              <CardContent>
+            <div className="space-y-3">
+              {(() => {
+                const projectManager = findProjectManager(project as Project);
+                return projectManager && (
+                  <div className="border-b pb-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {getInitials(projectManager)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-medium">{getDisplayName(projectManager)}</span>
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{getEmail(projectManager)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               
               {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
                 <>
-                  {project.members
-                    .filter(member => !project.projectManager || member.id !== project.projectManager.id)
-                    .slice(0, 3)
-                    .map((member, index) => (
-                      <div key={member.id || index} className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>
-                            {getInitials(member)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm">{getDisplayName(member)}</span>
-                          <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
+                  {(() => {
+                    const projectManager = findProjectManager(project as Project);
+                    return project.members
+                      .filter(member => !projectManager || member.id !== projectManager.id)
+                      .slice(0, 3)
+                      .map((member, index) => (
+                        <div key={member.id || index} className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>
+                              {getInitials(member)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="text-sm">{getDisplayName(member)}</span>
+                            <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                  })()}
                   
-                  {project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length > 3 && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      +{project.members.filter(member => !project.projectManager || member.id !== project.projectManager.id).length - 3} more team members
-                    </div>
-                  )}
+                  {(() => {
+                    const projectManager = findProjectManager(project as Project);
+                    const filteredMembers = project.members.filter(member => !projectManager || member.id !== projectManager.id);
+                    return filteredMembers.length > 3 && (
+                      <div className="text-sm text-muted-foreground mt-2">
+                        +{filteredMembers.length - 3} more team members
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">No team members yet</p>
@@ -821,7 +653,7 @@ export default function ProjectPage() {
                       id: project.id,
                       name: project.name,
                       members: project.members,
-                      projectManager: project.projectManager
+                      projectManager: findProjectManager(project as Project)
                     }} 
                     onMemberAdded={handleMemberAdded}
                     onMemberRemoved={handleMemberRemoved}
@@ -829,18 +661,18 @@ export default function ProjectPage() {
                   />
                 </DialogContent>
               </Dialog>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
 
         <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
+              <CardHeader className="pb-2">
+                <div className="mb-2">
               <LucideUpload className="h-5 w-5 text-muted-foreground" />
-            </div>
+                </div>
             <CardTitle className="text-base">Files</CardTitle>
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div 
               className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
                 isDragging 
@@ -926,9 +758,9 @@ export default function ProjectPage() {
                 </Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
 
       {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
       <div className="mt-6 flex flex-col md:flex-row gap-4">
@@ -936,7 +768,7 @@ export default function ProjectPage() {
           <CardHeader className="pb-2">
             <div className="mb-2">
               <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
-            </div>
+                </div>
             <CardTitle className="text-base">Chat with ATLAS</CardTitle>
           </CardHeader>
           <CardContent>
@@ -950,20 +782,20 @@ export default function ProjectPage() {
                 Open Chat
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
         
         <Card className="md:w-1/2">
           <CardHeader className="pb-2">
             <div className="mb-2">
               <LucideFileText className="h-5 w-5 text-muted-foreground" />
-            </div>
+          </div>
             <CardTitle className="text-base">Documents</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm mb-4">
               Access and manage all documents related to this project
-            </div>
+        </div>
             
             <Button asChild className="w-full">
               <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">
@@ -1047,6 +879,94 @@ export default function ProjectPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialogs */}
+      {canEditProject && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[625px]">
+            <EditProjectForm 
+              project={project as Project} 
+              onSuccess={handleProjectUpdated} 
+              onCancel={() => setIsEditDialogOpen(false)} 
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the project
+              and all associated data.
+            </AlertDialogDescription>
+            <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+              <p className="font-medium mb-2">The following will be deleted:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Project data and settings</li>
+                <li>Team member associations</li>
+                <li>All chat history and interactions</li>
+                {project.vectorStoreId && (
+                  <li>
+                    Associated vector store{" "}
+                    <span className="text-xs opacity-70">(used for file search)</span>
+                  </li>
+                )}
+                {project.assistantId && (
+                  <li>
+                    Associated assistant{" "}
+                    <span className="text-xs opacity-70">(AI chat capabilities)</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {hasRole("ADMIN") && (
+        <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline">
+              <LucideSettings className="h-4 w-4 mr-2" />
+              Debug Info
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Project Debug Information</DialogTitle>
+              <DialogDescription>
+                Technical details for this project's AI resources
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div>
+                <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
+                <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                  {project.vectorStoreId || "Not available"}
+                </code>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
+                <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                  {project.assistantId || "Not available"}
+                </code>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -1058,16 +978,29 @@ interface EditProjectFormProps {
 }
 
 function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps) {
+  const projectManager = findProjectManager(project);
+  
   const [formData, setFormData] = useState({
     name: project.name,
     description: project.description || "",
     status: project.status,
-    projectManagerId: project.projectManager?.user.id || "none"
+    projectManagerId: projectManager?.user.id || ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<ProjectMember[]>(project.members || []);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [managerSearchQuery, setManagerSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedManager, setSelectedManager] = useState<User | null>(
+    projectManager ? {
+      id: projectManager.user.id,
+      name: projectManager.user.name,
+      email: projectManager.user.email,
+      image: projectManager.user.image
+    } : null
+  );
 
   // Fetch team members when the component mounts
   useEffect(() => {
@@ -1090,12 +1023,22 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
 
   // Update form data when project changes
   useEffect(() => {
+    // Get project manager using helper function
+    const projectManager = findProjectManager(project);
+    
     setFormData({
       name: project.name,
       description: project.description || "",
       status: project.status,
-      projectManagerId: project.projectManager?.user.id || "none"
+      projectManagerId: projectManager?.user.id || ""
     });
+    
+    setSelectedManager(projectManager ? {
+      id: projectManager.user.id,
+      name: projectManager.user.name,
+      email: projectManager.user.email,
+      image: projectManager.user.image
+    } : null);
   }, [project]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1113,10 +1056,43 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
     }));
   };
 
-  const handleProjectManagerChange = (value: string) => {
+  const handleSearch = async (query: string) => {
+    setManagerSearchQuery(query);
+    
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error("Failed to search users");
+      
+      const users = await response.json();
+      setSearchResults(users);
+    } catch (error) {
+      console.error("Error searching users:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectManager = (user: User) => {
+    setSelectedManager(user);
     setFormData(prev => ({
       ...prev,
-      projectManagerId: value
+      projectManagerId: user.id
+    }));
+    setManagerSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleRemoveManager = () => {
+    setSelectedManager(null);
+    setFormData(prev => ({
+      ...prev,
+      projectManagerId: ""
     }));
   };
 
@@ -1143,11 +1119,6 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
 
         // Create a copy of the form data to modify before sending
         const dataToSend = { ...formData };
-        
-        // Convert "none" to empty string for the API
-        if (dataToSend.projectManagerId === "none") {
-          dataToSend.projectManagerId = "";
-        }
 
         console.log(`Submitting project update (attempt ${retryCount + 1}/${maxRetries + 1}):`, dataToSend);
         
@@ -1253,29 +1224,57 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
         </div>
         <div className="grid gap-2">
           <Label htmlFor="projectManager">Project Manager</Label>
-          <Select 
-            value={formData.projectManagerId} 
-            onValueChange={handleProjectManagerChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select project manager" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              {isLoadingMembers ? (
-                <div className="flex items-center justify-center p-2">
-                  <LucideLoader className="h-4 w-4 animate-spin mr-2" />
-                  <span>Loading team members...</span>
-                </div>
-              ) : (
-                teamMembers.map(member => (
-                  <SelectItem key={member.user.id} value={member.user.id}>
-                    {member.user.name || member.user.email}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Input 
+              placeholder="Search for a project manager" 
+              value={managerSearchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pr-8"
+            />
+            {isSearching && (
+              <div className="absolute right-2 top-2">
+                <LucideLoader className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          {searchResults.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-black ring-opacity-5">
+              {searchResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => handleSelectManager(user)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback>
+                        {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span>{user.name || 'No name'}</span>
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedManager && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1 text-sm">
+                <span>{selectedManager.name || selectedManager.email} (Project Manager)</span>
+                <button 
+                  type="button" 
+                  className="ml-1 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={handleRemoveManager}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <DialogFooter>
@@ -1454,7 +1453,9 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
                   </div>
                   <Button 
                     type="button" 
-                    size="sm" 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleAddMember(user)}
                   >
                     Add
@@ -1541,11 +1542,9 @@ function ManageTeamForm({ project, onMemberAdded, onMemberRemoved, onClose }: Ma
 
 // Helper function to format file size
 function formatFileSize(bytes: number): string {
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   if (bytes === 0) return '0 Bytes';
-  
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 } 
