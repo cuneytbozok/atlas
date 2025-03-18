@@ -200,6 +200,7 @@ model File {
   mimeType     String
   size         Int
   uploadedById String
+  metadata     Json?             // Add metadata field to store vector store file info
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   uploadedBy   User              @relation(fields: [uploadedById], references: [id])

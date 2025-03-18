@@ -142,10 +142,32 @@ export async function POST(
           }
         });
 
-        // If project has an assistant, create file association with the assistant instead
+        // Always create a direct project association for reliability
+        try {
+          console.log(`Creating direct project association: file=${dbFile.id}, project=${projectId}`);
+          const projectAssociation = await prisma.fileAssociation.create({
+            data: {
+              fileId: dbFile.id,
+              associableType: 'Project',
+              associableId: projectId
+            }
+          });
+          
+          console.log('Project file association created:', {
+            associationId: projectAssociation.id,
+            fileId: dbFile.id,
+            projectId
+          });
+        } catch (projectAssociationError) {
+          console.error('Error creating project file association:', projectAssociationError);
+          // Continue even if this association fails
+        }
+
+        // If project has an assistant, create file association with the assistant as well
         if (project.assistantId && assistant) {
           try {
-            await prisma.fileAssociation.create({
+            console.log(`Creating file association: file=${dbFile.id}, assistant=${assistant.id}`);
+            const association = await prisma.fileAssociation.create({
               data: {
                 fileId: dbFile.id,
                 associableType: 'Assistant',
@@ -153,7 +175,8 @@ export async function POST(
               }
             });
             
-            console.log('File associated with project assistant:', {
+            console.log('File association created successfully:', {
+              associationId: association.id,
               fileId: dbFile.id,
               assistantId: assistant.id,
               projectId
@@ -223,12 +246,18 @@ export async function POST(
 
     // Add files to vector store - use batch API if multiple files
     try {
+      let vectorStoreResponses = [];
+      
       if (openaiFileIds.length === 1) {
         // Single file - use single file API
-        await AIService.addFileToVectorStore(
+        const result = await AIService.addFileToVectorStore(
           openaiFileIds[0], 
           project.vectorStore.openaiVectorStoreId
         );
+        
+        if (result && typeof result === 'object') {
+          vectorStoreResponses.push(result);
+        }
         
         console.log(`Successfully added file to vector store: ${openaiFileIds[0]}`);
       } else if (openaiFileIds.length > 1) {
@@ -238,7 +267,35 @@ export async function POST(
           project.vectorStore.openaiVectorStoreId
         );
         
+        if (batchResult && batchResult.file_ids) {
+          vectorStoreResponses = batchResult.file_ids;
+        }
+        
         console.log(`Successfully added ${openaiFileIds.length} files to vector store in batch: ${JSON.stringify(batchResult)}`);
+      }
+      
+      // Update file records with vector store file IDs if available
+      if (vectorStoreResponses.length > 0) {
+        for (const response of vectorStoreResponses) {
+          // Try to find matching file and update with vector store file ID
+          if (response.file_id && response.id) {
+            const openaiFileId = response.file_id;
+            const vectorStoreFileId = response.id;
+            
+            // Update corresponding file with vector store file ID
+            await prisma.$executeRaw`
+              UPDATE "File"
+              SET metadata = ${JSON.stringify({
+                vectorStoreFileId: vectorStoreFileId,
+                status: response.status || 'completed',
+                usage_bytes: response.usage_bytes
+              })}::jsonb
+              WHERE "openaiFileId" = ${openaiFileId}
+            `;
+            
+            console.log(`Updated file record with vector store file ID: ${vectorStoreFileId}`);
+          }
+        }
       }
     } catch (vectorStoreError) {
       console.error('Vector store error details:', vectorStoreError);

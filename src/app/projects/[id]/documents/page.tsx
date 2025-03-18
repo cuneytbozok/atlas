@@ -46,6 +46,7 @@ export default function ProjectDocumentsPage() {
   const [canDeleteFiles, setCanDeleteFiles] = useState(false);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [fileDeleting, setFileDeleting] = useState<string | null>(null);
 
   // Move formatFileSize to before it's used
   const formatFileSize = useCallback((bytes: number): string => {
@@ -384,7 +385,7 @@ export default function ProjectDocumentsPage() {
     setFileToDelete(fileId);
   }, []);
 
-  // Fetch files from Vector Store API
+  // Fetch files from database
   const fetchFiles = useCallback(async (useRefresh = false) => {
     if (useRefresh) {
       setRefreshing(true);
@@ -393,10 +394,10 @@ export default function ProjectDocumentsPage() {
     }
     
     try {
-      console.log(`Fetching files from vector store for project ${projectId}`);
+      console.log(`Fetching files for project ${projectId}`);
       
-      // Always use vector store API source
-      const response = await fetch(`/api/projects/${projectId}/files?source=vectorstore`);
+      // Use database API to get files
+      const response = await fetch(`/api/projects/${projectId}/files`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(e => ({}));
@@ -421,30 +422,31 @@ export default function ProjectDocumentsPage() {
         });
       }
       
-      // Transform vector store files to match our ProjectFile interface
+      // Files now come directly from our database with correct format
       let formattedFiles: ProjectFile[] = [];
       
-      // Handle case where data itself is an array vs wrapped in a data property
+      // Handle both array response and data property format for backward compatibility
       const fileArray = Array.isArray(data) ? data : (data.data || []);
       
       if (fileArray.length > 0) {
         formattedFiles = fileArray.map((file: any) => ({
           id: file.id,
-          name: file.filename || 'Unknown file',
-          size: file.bytes || 0,
-          type: file.purpose || 'unknown',
-          createdAt: file.created_at ? new Date(file.created_at * 1000).toISOString() : new Date().toISOString()
+          openaiFileId: file.openaiFileId,
+          name: file.name || file.filename || 'Unknown file',
+          size: file.size || file.bytes || 0,
+          type: file.type || file.mimeType || file.purpose || 'unknown',
+          createdAt: file.createdAt || (file.created_at ? new Date(file.created_at * 1000).toISOString() : new Date().toISOString())
         }));
         
-        console.log(`Formatted ${formattedFiles.length} files from vector store`);
+        console.log(`Processed ${formattedFiles.length} files from database`);
       } else {
-        console.warn('No files found in the response');
+        console.log('No files found for this project');
       }
       
       setFiles(formattedFiles);
     } catch (error) {
-      console.error('Error fetching files from vector store:', error);
-      toast.error('Failed to load files from vector store', {
+      console.error('Error fetching files:', error);
+      toast.error('Failed to load files', {
         description: error instanceof Error ? error.message : 'Unknown error'
       });
     } finally {
@@ -514,34 +516,55 @@ export default function ProjectDocumentsPage() {
     };
   }, [checkProjectPermissions]);
 
-  const handleDeleteFile = useCallback(async () => {
-    if (!fileToDelete) return;
+  const handleRemoveFile = async (fileId: string) => {
+    setFileToDelete(null);
+    setFileDeleting(fileId);
     
     try {
-      setDeleteInProgress(true);
+      console.log(`Deleting file ${fileId} from project ${projectId}`);
       
-      // Make API call to delete the file
-      const response = await fetch(`/api/projects/${projectId}/files?fileId=${fileToDelete}`, {
+      const response = await fetch(`/api/projects/${projectId}/files?fileId=${fileId}`, {
         method: 'DELETE'
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete file');
+        let errorMessage = `${response.status} ${response.statusText}`;
+        
+        try {
+          // Try to parse JSON error response
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMessage += `. ${errorData.error}`;
+          }
+        } catch (parseError) {
+          // If it's not JSON, try to get text
+          try {
+            const errorText = await response.text();
+            if (errorText) {
+              errorMessage += `. ${errorText}`;
+            }
+          } catch (textError) {
+            // Ignore text parsing errors
+          }
+        }
+        
+        throw new Error(`Failed to delete file: ${errorMessage}`);
       }
       
-      // Remove file from state without refetching all files
-      setFiles(prev => prev.filter(file => file.id !== fileToDelete));
+      // Remove file from the files list
+      setFiles(prev => prev.filter(file => file.id !== fileId));
       
       toast.success('File deleted successfully');
+      
     } catch (error) {
       console.error('Error deleting file:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete file');
+      toast.error('Failed to delete file', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
-      setFileToDelete(null);
-      setDeleteInProgress(false);
+      setFileDeleting(null);
     }
-  }, [fileToDelete, projectId]);
+  };
 
   return (
     <div className="space-y-6">
@@ -745,7 +768,7 @@ export default function ProjectDocumentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleDeleteFile}
+              onClick={() => handleRemoveFile(fileToDelete as string)}
               disabled={deleteInProgress}
             >
               {deleteInProgress ? 'Deleting...' : 'Delete'}

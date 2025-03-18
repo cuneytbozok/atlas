@@ -505,12 +505,12 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
    * Adds a file to a vector store
    * @param fileId - The OpenAI file ID
    * @param vectorStoreId - The OpenAI vector store ID
-   * @returns True if successful
+   * @returns The vector store file information
    */
   static async addFileToVectorStore(
     fileId: string,
     vectorStoreId: string
-  ): Promise<boolean> {
+  ): Promise<any> {
     try {
       const client = await this.getClient();
       
@@ -536,9 +536,11 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
         throw new Error(`Failed to add file to vector store: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
       }
       
-      console.log(`File added to vector store successfully`);
+      // Parse the response to get the file information
+      const fileData = await response.json();
+      console.log(`File added to vector store successfully, response:`, fileData);
       
-      return true;
+      return fileData;
     } catch (error) {
       console.error("Error adding file to vector store:", error);
       throw error;
@@ -549,7 +551,7 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
    * Adds multiple files to a vector store in a batch
    * @param fileIds - Array of OpenAI file IDs
    * @param vectorStoreId - The OpenAI vector store ID
-   * @returns The batch operation response
+   * @returns The batch operation response with file information
    */
   static async addFileBatchToVectorStore(
     fileIds: string[],
@@ -591,6 +593,18 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       }
       
       console.log(`File batch added to vector store, batch ID: ${batchData.id}, status: ${batchData.status}`);
+      
+      // If the API returns file_ids, include them in the response
+      if (!batchData.file_ids && batchData.files) {
+        // Map files to a more consistent format if needed
+        batchData.file_ids = batchData.files.map((f: any) => ({
+          id: f.id,
+          file_id: f.file_id,
+          status: f.status,
+          created_at: f.created_at,
+          usage_bytes: f.usage_bytes
+        }));
+      }
       
       return batchData;
     } catch (error) {
@@ -708,6 +722,34 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
     } catch (error) {
       console.error("Error removing file from vector store:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Deletes a file from OpenAI's files API
+   * @param openaiFileId - The OpenAI file ID to delete
+   * @returns True if successful, false otherwise
+   */
+  static async deleteFileFromOpenAI(openaiFileId: string): Promise<boolean> {
+    try {
+      console.log(`Deleting file ${openaiFileId} from OpenAI files API`);
+      
+      // Get the OpenAI client
+      const client = await this.getClient();
+      
+      // Delete the file from OpenAI
+      await client.files.del(openaiFileId);
+      console.log(`Successfully deleted file from OpenAI: ${openaiFileId}`);
+      
+      return true;
+    } catch (error) {
+      // Log the error but don't throw it
+      console.error(`Error deleting file ${openaiFileId} from OpenAI:`, error);
+      logger.error(error, {
+        action: 'delete_openai_file',
+        openaiFileId
+      });
+      return false;
     }
   }
 } 
