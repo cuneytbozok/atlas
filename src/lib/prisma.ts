@@ -4,40 +4,22 @@ import { PrismaClient } from '@prisma/client';
 // exhausting your database connection limit.
 // Learn more: https://pris.ly/d/help/next-js-best-practices
 
-// Add prisma to the NodeJS global type
+// Prevent multiple instances of Prisma Client in development
 declare global {
   var prisma: PrismaClient | undefined;
 }
 
-/**
- * Create a new PrismaClient instance with custom error handling
- */
-function createPrismaClient() {
-  const client = new PrismaClient({
-    log: ['error', 'warn'],
-  });
+// Use a single instance of Prisma Client in development
+// In production, each function call gets a dedicated connection
+const prisma = global.prisma || new PrismaClient();
 
-  // Add error handling
-  client.$use(async (params, next) => {
-    try {
-      return await next(params);
-    } catch (error) {
-      console.error(`Prisma error in ${params.model}.${params.action}:`, error);
-      throw error;
-    }
-  });
-
-  return client;
-}
-
-// Check if we already have a client instance - if not, create one
-const prismaGlobal = global as unknown as { prisma: PrismaClient };
-export const prisma = prismaGlobal.prisma || createPrismaClient();
-
-// Save the client to avoid multiple connections in development
 if (process.env.NODE_ENV !== 'production') {
-  prismaGlobal.prisma = prisma;
+  global.prisma = prisma;
 }
+
+// Export both as default and named export for backward compatibility
+export default prisma;
+export { prisma };
 
 // Ensure the client is initialized and connected
 prisma.$connect()

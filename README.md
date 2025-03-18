@@ -20,26 +20,18 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### Docker Deployment
+### Docker Deployment (Recommended)
 
-ATLAS can be easily deployed using Docker:
+The easiest way to deploy ATLAS is using Docker:
 
-```bash
-# Build and start the containers
-docker-compose up -d
-```
+1. Make sure Docker and Docker Compose are installed
+2. Run the automated setup script:
+   ```bash
+   ./rebuild-docker.sh
+   ```
+3. Access the application at http://localhost:3000
 
-The system will automatically:
-- Start the PostgreSQL database
-- Run database migrations & seed data
-- Start the ATLAS application
-
-```bash
-# View logs
-docker-compose logs -f
-```
-
-For detailed Docker deployment instructions, see [DOCKER.md](./DOCKER.md).
+For detailed Docker deployment instructions, see [DOCKER.md](DOCKER.md).
 
 ## Features
 

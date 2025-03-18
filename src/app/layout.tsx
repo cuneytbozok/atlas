@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -16,6 +16,12 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0F172A",
+};
+
 export const metadata: Metadata = {
   title: "ATLAS - Advanced Team Learning Assistant System",
   description: "AI-powered workspace for enhanced team learning and productivity",
@@ -29,8 +35,6 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/manifest.json",
-  themeColor: "#0F172A",
-  viewport: "width=device-width, initial-scale=1",
   applicationName: "ATLAS",
   keywords: ["AI", "Learning", "Team", "Productivity", "Assistant"],
   authors: [{ name: "ATLAS Team" }],

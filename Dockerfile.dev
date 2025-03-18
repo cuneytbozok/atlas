@@ -1,0 +1,45 @@
+FROM node:21-alpine
+
+# Install additional dependencies needed for Prisma and database checks
+RUN apk add --no-cache bash curl postgresql-client
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy the configuration files
+COPY postcss.config.js tailwind.config.js next.config.js tsconfig.json ./
+
+# Copy the rest of the application
+COPY . .
+
+# Copy the environment variables
+COPY .env.docker .env
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Make the entrypoint scripts executable
+RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/custom-entrypoint.sh
+
+# Set environment variables
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_DISABLE_ESLINT=1 \
+    NODE_ENV=development
+
+# Expose the port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Set entrypoint and command
+ENTRYPOINT ["/app/custom-entrypoint.sh"]
+CMD ["npm", "run", "dev"]

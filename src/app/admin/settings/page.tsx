@@ -94,12 +94,52 @@ export default function AdminSettingsPage() {
     
     checkDatabaseHealth().then(isHealthy => {
       if (isHealthy) {
-        checkApiKey();
+        checkAppSettings();
       } else {
         setIsLoading(false);
       }
     });
   }, []);
+
+  // New function to check app settings and permissions
+  const checkAppSettings = async () => {
+    try {
+      console.log("Checking app settings and permissions...");
+      const response = await fetch('/api/admin/settings/check');
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Settings check error:", errorText);
+        throw new Error("Failed to check app settings");
+      }
+      
+      const data = await response.json();
+      console.log("App settings check:", data);
+      
+      if (!data.isAppSettingAccessible) {
+        setError("AppSetting table is not accessible. Database migration may be required.");
+        setIsDatabaseError(true);
+        return;
+      }
+      
+      if (!data.permissions.hasAdminRole) {
+        setError("You don't have the ADMIN role required to access this page.");
+        return;
+      }
+      
+      if (!data.permissions.hasAppSettingsPermission) {
+        setError("You don't have the MANAGE_APP_SETTINGS or VIEW_APP_SETTINGS permission required.");
+        return;
+      }
+      
+      // If we got this far, proceed to fetch the API key status
+      checkApiKey();
+    } catch (err) {
+      console.error("Error checking app settings:", err);
+      setError(err instanceof Error ? err.message : "Failed to check app settings");
+      setIsLoading(false);
+    }
+  };
 
   // Fetch current API key status
   const checkApiKey = async () => {

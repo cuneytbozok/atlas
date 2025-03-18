@@ -1,164 +1,258 @@
-# Deploying ATLAS with Docker
+# ATLAS Docker Setup Guide
 
-This guide explains how to deploy the ATLAS application using Docker and Docker Compose.
+This guide explains how to deploy and manage the ATLAS application using Docker.
 
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
-- An OpenAI API key (required for AI functionality)
+- Docker and Docker Compose installed on your machine
+- Git to clone the repository
 
 ## Quick Start
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/atlas.git
-   cd atlas/atlas-app
-   ```
+### 1. Clone the repository
 
-2. Create a `.env` file for your environment variables:
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+git clone <repository-url>
+cd atlas-app
+```
 
-3. Edit the `.env` file to add your OpenAI API key and modify any other settings:
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   ```
+### 2. Configure the environment
 
-4. Run the application with Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
+The application comes with a pre-configured `.env.docker` file for Docker deployment. You don't need to modify it for a basic setup, but you can adjust settings if needed.
 
-   The system will automatically:
-   - Start the PostgreSQL database
-   - Run all database migrations
-   - Seed the database with initial data
-   - Start the ATLAS application
+### 3. Build and start the containers
 
-5. Access ATLAS at http://localhost:3000 and log in with the default admin credentials:
-   - Email: admin@atlas-ai.com
-   - Password: password
+Use the provided script:
 
-   **Important**: Change these credentials immediately after first login.
+```bash
+./run-docker.sh
+```
 
-## Automatic Database Initialization
+This script will:
+- Build the Docker images if they don't exist
+- Start the containers in detached mode
 
-The ATLAS Docker setup includes automatic database initialization:
+For a clean rebuild (recommended for first-time setup or after major changes):
 
-1. **Database Migrations**: All schema changes are automatically applied when the container starts
-2. **Seed Data**: Initial data (including admin users, roles, and permissions) is seeded
-3. **Health Checks**: The system ensures the database is ready before starting the application
+```bash
+./rebuild-docker.sh --clean
+```
 
-No manual database setup is required!
+This will:
+- Stop and remove any existing containers
+- Rebuild the Docker images without using cache
+- Start the containers in detached mode
+- **Warning**: This will delete all data in the database
 
-## Environment Variables
+### 4. Access the application
 
-The following environment variables can be configured:
+Once the containers are running, access the application at:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@postgres:5432/atlas?schema=public` |
-| `JWT_SECRET` | Secret key for JWT tokens | `your-super-secret-jwt-key-change-in-production` |
-| `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
-| `NEXTAUTH_SECRET` | Secret key for NextAuth | `your-nextauth-secret-key-change-in-production` |
-| `NEXTAUTH_URL` | URL for NextAuth | `http://localhost:3000` |
-| `OPENAI_API_KEY` | Your OpenAI API key | `required` |
+```
+http://localhost:3000
+```
 
-## Persisting Data
+### 5. Log in with admin credentials
 
-PostgreSQL data is persisted in a Docker volume named `postgres-data`. This ensures your data remains intact even if the container is removed.
+The application is pre-configured with an admin user:
+- Email: `admin@atlas.com`
+- Password: `password`
 
-## Production Deployment
+**IMPORTANT: For security, change this password immediately after your first login.**
 
-For production deployments, consider:
+## Helper Scripts
 
-1. Using a reverse proxy like Nginx for SSL termination
-2. Setting stronger passwords in the environment variables
-3. Using a managed PostgreSQL service instead of the container
+Several scripts are provided to manage the Docker environment:
 
-Example Nginx configuration:
+### Rebuild and restart all containers
 
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    return 301 https://$host$request_uri;
-}
+```bash
+./rebuild-docker.sh
+```
 
-server {
-    listen 443 ssl;
-    server_name yourdomain.com;
+### Check container status and health
 
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+```bash
+./status-docker.sh
+```
 
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+### Stop all containers
+
+```bash
+./stop-docker.sh
+```
+
+## Docker Compose Services
+
+The setup includes the following services:
+
+1. **atlas-postgres**: PostgreSQL database server
+   - Port: 5432 (mapped to host)
+   - Credentials: postgres/postgres
+   - Database: atlas
+
+2. **atlas-app**: The ATLAS Next.js application
+   - Port: 3000 (mapped to host)
+   - Environment: Development mode
+
+## Configuration
+
+### Database Configuration
+
+The PostgreSQL database is automatically initialized with:
+- Default database: atlas
+- UUID extension enabled
+- Required privileges granted to the postgres user
+
+### Application Initialization
+
+During the first startup, ATLAS automatically:
+1. Applies all database migrations
+2. Creates the required roles (ADMIN, PROJECT_MANAGER, USER)
+3. Sets up necessary permissions for each role
+4. Creates the admin user with full permissions
+5. Initializes default application settings
+
+### Environment Variables
+
+Key environment variables:
+
+- `DATABASE_URL`: Connection string for PostgreSQL
+- `OPENAI_API_KEY`: Initially set to a placeholder, configure in app
+- `JWT_SECRET` and `NEXTAUTH_SECRET`: Authentication secrets
+- `NODE_ENV`: Set to "development" by default
+
+## Health Check API
+
+ATLAS includes a built-in health check API endpoint at `/api/health` that Docker uses to determine container health. You can also use this endpoint for monitoring purposes.
+
+Example response when healthy:
+```json
+{
+  "status": "ok",
+  "database": "connected",
+  "timestamp": "2023-09-14T12:34:56.789Z",
+  "environment": "development"
 }
 ```
 
-## Updating ATLAS
+You can manually check the health status with:
+```bash
+curl http://localhost:3000/api/health
+```
 
-To update to a new version:
+This endpoint is configured in the Docker Compose and Dockerfile health checks to automatically monitor the application's status.
 
-1. Pull the latest code:
-   ```bash
-   git pull
-   ```
+## User Management
 
-2. Rebuild and restart the containers:
-   ```bash
-   docker-compose down
-   docker-compose build --no-cache
-   docker-compose up -d
-   ```
+### Pre-configured Roles
+
+The application comes with three pre-configured roles:
+
+1. **ADMIN**: Full access to all features, including:
+   - Manage app settings
+   - Create and manage projects
+   - Manage users and permissions
+   - Use AI features
+
+2. **PROJECT_MANAGER**: Can create and manage projects
+   - Create new projects
+   - Manage existing projects
+   - Use AI features
+
+3. **USER**: Regular user with limited access
+   - Use AI features
+   - Participate in projects they've been invited to
+
+### Creating Additional Users
+
+You can create additional users through the admin interface after logging in:
+1. Navigate to User Management
+2. Click "Create User"
+3. Assign appropriate roles
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Container continuously restarting
 
-If the application can't connect to the database, check:
+Check the logs:
 
-1. The PostgreSQL container is running:
+```bash
+docker-compose logs atlas-app
+```
+
+Common issues:
+- Database connection problems
+- Prisma client not generated properly
+- Environment variable issues
+
+### Database connection issues
+
+Verify PostgreSQL is running:
+
+```bash
+docker exec -it atlas-postgres pg_isready -U postgres
+```
+
+If the application reports "AppSetting table is not accessible" or similar errors:
+
+```bash
+# Restart the application container
+docker-compose restart atlas
+
+# If the issue persists, run the database seed manually
+docker exec -it atlas-app npx prisma db seed
+```
+
+### Missing environment variables
+
+Check if all required environment variables are in `.env.docker`.
+
+## Development Workflow
+
+### Making code changes
+
+1. Make changes to your code
+2. The development server will automatically restart
+3. If you modify dependencies:
    ```bash
-   docker ps | grep postgres
+   ./rebuild-docker.sh
    ```
 
-2. The DATABASE_URL environment variable is set correctly in your `.env` file.
+### Database migrations
 
-3. Check the container logs for migration errors:
+When you modify the Prisma schema:
+
+1. Generate and apply migrations:
    ```bash
-   docker-compose logs atlas
+   docker exec -it atlas-app npx prisma migrate dev --name your-migration-name
    ```
 
-### OpenAI API Issues
+## Production Deployment
 
-If AI features aren't working:
+For production deployment:
 
-1. Verify your OPENAI_API_KEY is set correctly in the ATLAS admin settings
-2. Check if your OpenAI API key has the necessary permissions
-3. Check the application logs:
-   ```bash
-   docker-compose logs -f atlas
-   ```
+1. Modify `.env.docker` with production settings
+2. Use a secure `JWT_SECRET` and `NEXTAUTH_SECRET`
+3. Configure a valid `OPENAI_API_KEY`
+4. Change `NODE_ENV=production`
+5. Rebuild the containers
 
 ## Security Notes
 
-1. **Change default secrets**: Always change the default JWT and NextAuth secrets in production
-2. **API Key security**: Your OpenAI API key should be kept confidential
-3. **Database passwords**: Change the default PostgreSQL password in production
-4. **Default admin password**: Change the default admin password immediately after first login
+- Change all default passwords in production
+- Configure SSL/TLS for production deployment
+- Set up a reverse proxy (Nginx, Traefik) for production
+- Don't expose PostgreSQL port in production
 
-## Accessing from Other Devices
+## Troubleshooting TypeScript Errors
 
-To access ATLAS from other devices on your network:
+When developing, you might encounter TypeScript errors related to missing imports or module declarations. These are typically resolved by:
 
-1. Use your server's IP address: `http://your-server-ip:3000`
-2. For public access, set up a domain and proper SSL certificate 
+1. Ensuring the TypeScript server is aware of your changes (restart VS Code or run `npx tsc --noEmit`)
+2. Checking that paths in `tsconfig.json` are correctly configured
+3. Making sure all required packages are installed
+
+For a comprehensive guide to resolving TypeScript errors, see the [TYPESCRIPT.md](./TYPESCRIPT.md) file.
+
+The Docker build process is configured to ignore TypeScript errors during build, but it's good practice to fix them in your development environment. 
