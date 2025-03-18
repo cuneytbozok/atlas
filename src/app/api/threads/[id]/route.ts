@@ -20,13 +20,16 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Access session first, before using params
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const threadId = params.id;
     const userId = session.user.id;
+    
+    // Now that we've awaited something, we can access params
+    const threadId = params.id;
 
     // Check if user has access to the thread's project
     const hasAccess = await hasThreadAccess(threadId, userId);
@@ -37,10 +40,13 @@ export async function GET(
     const thread = await ChatService.getThread(threadId, userId);
     return NextResponse.json(thread);
   } catch (error) {
-    logger.error(error, {
+    const errorInfo = {
       action: 'get_thread',
-      threadId: params.id
-    });
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    logger.error(error, errorInfo);
+    
     return NextResponse.json(
       { error: 'Failed to fetch thread' },
       { status: 500 }
@@ -57,13 +63,16 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Access session first, before using params
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const threadId = params.id;
     const userId = session.user.id;
+    
+    // Now that we've awaited something, we can access params
+    const threadId = params.id;
 
     // Check if user has access to the thread's project
     const hasAccess = await hasThreadAccess(threadId, userId);
@@ -83,10 +92,12 @@ export async function PUT(
 
     return NextResponse.json(thread);
   } catch (error) {
-    logger.error(error, {
+    const errorInfo = {
       action: 'update_thread',
-      threadId: params.id
-    });
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    logger.error(error, errorInfo);
 
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -111,13 +122,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Access session first, before using params
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const threadId = params.id;
     const userId = session.user.id;
+    
+    // Now that we've awaited something, we can access params
+    const threadId = params.id;
 
     // Check if user has access to the thread's project
     const hasAccess = await hasThreadAccess(threadId, userId);
@@ -129,10 +143,12 @@ export async function DELETE(
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    logger.error(error, {
+    const errorInfo = {
       action: 'delete_thread',
-      threadId: params.id
-    });
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    logger.error(error, errorInfo);
     
     return NextResponse.json(
       { error: 'Failed to delete thread' },

@@ -18,8 +18,8 @@ export async function GET(
       );
     }
 
-    // Extract projectId from params and ensure it's a string
-    const { id: projectId } = params;
+    // Extract projectId from params after awaiting session
+    const projectId = params.id;
 
     // Find the user
     const user = await prisma.user.findUnique({
@@ -114,8 +114,8 @@ export async function PATCH(
       );
     }
 
-    // Extract projectId from params and ensure it's a string
-    const { id: projectId } = params;
+    // Extract projectId from params after awaiting session
+    const projectId = params.id;
 
     // Find the user
     const user = await prisma.user.findUnique({
@@ -419,8 +419,8 @@ export async function DELETE(
       );
     }
 
-    // Extract projectId from params and ensure it's a string
-    const { id: projectId } = params;
+    // Extract projectId from params after awaiting session
+    const projectId = params.id;
 
     // Find the user
     const user = await prisma.user.findUnique({

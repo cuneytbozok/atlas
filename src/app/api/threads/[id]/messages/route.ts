@@ -20,36 +20,48 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Access session first, before using params
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const threadId = params.id;
     const userId = session.user.id;
+    
+    // Now that we've awaited something, we can access params
+    const threadId = params.id;
+    
+    console.log(`[API] Sending message to thread ${threadId} from user ${userId}`);
 
     // Check if user has access to the thread's project
     const hasAccess = await hasThreadAccess(threadId, userId);
     if (!hasAccess) {
+      console.log(`[API] User ${userId} does not have access to thread ${threadId}`);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Parse and validate request body
     const body = await request.json();
     const validatedData = sendMessageSchema.parse(body);
+    console.log(`[API] Message content (first 50 chars): ${validatedData.content.substring(0, 50)}...`);
 
+    console.log(`[API] Calling ChatService.sendMessage for thread ${threadId}`);
     const result = await ChatService.sendMessage(
       threadId,
       userId,
       validatedData.content
     );
+    console.log(`[API] Message sent successfully, runId: ${result.run?.id}, status: ${result.run?.status}`);
 
     return NextResponse.json(result);
   } catch (error) {
-    logger.error(error, {
+    const errorInfo = {
       action: 'send_message',
-      threadId: params.id
-    });
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    logger.error(error, errorInfo);
+    console.error(`[API] Error sending message:`, error);
 
     if (error instanceof ZodError) {
       return NextResponse.json(

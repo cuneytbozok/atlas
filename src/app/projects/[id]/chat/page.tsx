@@ -79,16 +79,44 @@ export default function ProjectChatPage() {
   // Handle run polling
   useEffect(() => {
     if (currentRun && currentRun.status !== "completed" && currentRun.status !== "failed") {
+      // Clear any existing interval
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+
+      console.log(`Setting up polling for run ${currentRun.id} with status ${currentRun.status}`);
+      
+      // Set up polling with an increasing backoff
+      let attemptCount = 0;
+      const maxAttempts = 30; // Limit to prevent infinite polling
+      
       const interval = setInterval(() => {
+        attemptCount++;
+        console.log(`Polling attempt ${attemptCount} for run ${currentRun.id}`);
+        
+        if (attemptCount > maxAttempts) {
+          console.log(`Reached max polling attempts (${maxAttempts}), stopping`);
+          clearInterval(interval);
+          setPollingInterval(null);
+          setCurrentRun(null);
+          toast.error("Assistant response timed out");
+          return;
+        }
+        
         checkRunStatus();
-      }, 1000);
+      }, 2000); // Poll every 2 seconds
+      
       setPollingInterval(interval);
-      return () => clearInterval(interval);
+      return () => {
+        console.log(`Cleaning up polling interval for run ${currentRun.id}`);
+        clearInterval(interval);
+      };
     } else if (pollingInterval) {
+      console.log(`Run ${currentRun?.id} status is ${currentRun?.status}, clearing polling interval`);
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
-  }, [currentRun]);
+  }, [currentRun?.id, currentRun?.status]);
 
   // Load messages when a thread is selected
   useEffect(() => {
@@ -270,6 +298,8 @@ export default function ProjectChatPage() {
     if (!selectedThreadId || !currentRun) return;
 
     try {
+      console.log(`Checking run status for ${selectedThreadId}, run: ${currentRun.id}, current status: ${currentRun.status}`);
+      
       const response = await fetch(
         `/api/threads/${selectedThreadId}/runs/${currentRun.id}`
       );
@@ -279,17 +309,47 @@ export default function ProjectChatPage() {
       }
 
       const result = await response.json();
+      console.log(`Run status API response:`, result);
+      
+      // Update the current run status
       setCurrentRun({ ...currentRun, status: result.status });
+      console.log(`Updated current run status to: ${result.status}`);
 
       // If the run completed, add any new messages
-      if (result.status === "completed" && result.messages.length > 0) {
-        setThreadMessages([...threadMessages, ...result.messages]);
-        setCurrentRun(null);
+      if (result.status === "completed") {
+        console.log(`Run completed, received ${result.messages?.length || 0} new messages`);
         
-        // Also refresh the thread list to update timestamps
-        fetchThreads();
-      } else if (result.status === "failed") {
-        toast.error("Assistant failed to generate a response");
+        // If we got new messages, add them to the UI
+        if (result.messages && result.messages.length > 0) {
+          console.log(`Adding new messages to UI:`, result.messages);
+          
+          // Use a function to update state to ensure we're working with the latest state
+          setThreadMessages(prevMessages => {
+            const updatedMessages = [...prevMessages, ...result.messages];
+            console.log(`Updated thread messages total: ${updatedMessages.length}`);
+            return updatedMessages;
+          });
+          
+          // Always clear the currentRun when completed
+          console.log(`Clearing current run`);
+          setCurrentRun(null);
+          
+          // Also refresh the thread list to update timestamps
+          console.log(`Refreshing threads list`);
+          fetchThreads();
+        } else {
+          console.log(`No new messages to add despite completed status, fetching all messages`);
+          
+          // If no new messages were returned but run is completed,
+          // fetch all messages for the thread to ensure we have everything
+          fetchMessages(selectedThreadId);
+          
+          // Clear the current run
+          setCurrentRun(null);
+        }
+      } else if (result.status === "failed" || result.status === "cancelled" || result.status === "expired") {
+        console.log(`Run ${result.status}`);
+        toast.error(`Assistant response ${result.status}`);
         setCurrentRun(null);
       }
     } catch (error) {

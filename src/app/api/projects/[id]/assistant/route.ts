@@ -19,11 +19,6 @@ export async function PUT(
   try {
     const startTime = Date.now();
     
-    // Extract projectId from params and ensure it's a string
-    const { id: projectId } = params;
-    
-    console.log(`[Assistant Update] Starting update process for project ${projectId}`);
-    
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -34,8 +29,11 @@ export async function PUT(
       );
     }
 
+    // Extract projectId from params after awaiting session
+    const projectId = params.id;
+    
+    console.log(`[Assistant Update] Starting update process for project ${projectId}`);
     console.log(`[Assistant Update] Session user: ${session.user.email}`);
-    // No need to reassign projectId again, we already extracted it above
 
     // Find the user and check if they are an admin
     const user = await prisma.user.findUnique({

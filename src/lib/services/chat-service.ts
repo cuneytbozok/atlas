@@ -323,88 +323,113 @@ export class ChatService {
    */
   static async checkRunStatus(threadId: string, runId: string) {
     try {
+      console.log(`Checking run status for thread ${threadId}, run ${runId}`);
+      
       const thread = await prisma.thread.findUnique({
         where: { id: threadId }
       });
 
       if (!thread?.openaiThreadId) {
+        console.error(`Thread ${threadId} does not have an OpenAI thread ID`);
         throw new Error(`Thread ${threadId} does not have an OpenAI thread ID`);
       }
 
       const client = await this.getClient();
 
       // Get the run status
+      console.log(`Retrieving run ${runId} from OpenAI thread ${thread.openaiThreadId}`);
       const run = await client.beta.threads.runs.retrieve(
         thread.openaiThreadId,
         runId
       );
+      console.log(`Run status: ${run.status}`);
 
       let newMessages: any[] = [];
 
       // If the run is completed, get any new messages
       if (run.status === 'completed') {
-        // Get the last message we have
-        const lastMessage = await prisma.message.findFirst({
-          where: {
-            threadId,
-            role: 'assistant'
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
+        console.log(`Run ${runId} is completed, fetching new messages`);
+        
+        // Instead of just getting the last message, let's get the count of all messages we have
+        const existingMessagesCount = await prisma.message.count({
+          where: { threadId }
         });
-
-        // Get messages from OpenAI, possibly filtered to only get new ones
+        
+        console.log(`Thread has ${existingMessagesCount} existing messages in DB`);
+        
+        // Get ALL messages from OpenAI for this thread
+        console.log(`Listing ALL messages from OpenAI thread ${thread.openaiThreadId}`);
         const openaiMessages = await client.beta.threads.messages.list(
-          thread.openaiThreadId,
-          lastMessage?.openaiMessageId ? 
-          { after: lastMessage.openaiMessageId } : 
-          undefined
+          thread.openaiThreadId
         );
+        
+        console.log(`Retrieved ${openaiMessages.data.length} total messages from OpenAI`);
 
-        // Process and store new assistant messages
-        for (const oaiMessage of openaiMessages.data) {
-          // Skip if it's not from the assistant
-          if (oaiMessage.role !== 'assistant') continue;
-
-          // Skip if we already have this message
+        // Specifically look for the latest assistant message
+        const assistantMessages = openaiMessages.data.filter(msg => msg.role === 'assistant');
+        console.log(`Found ${assistantMessages.length} assistant messages in the thread`);
+        
+        if (assistantMessages.length > 0) {
+          // Get the latest assistant message
+          const latestAssistantMessage = assistantMessages[0]; // Messages are returned in reverse chronological order
+          console.log(`Latest assistant message ID: ${latestAssistantMessage.id}`);
+          
+          // Check if we already have this message
           const existing = await prisma.message.findUnique({
-            where: { openaiMessageId: oaiMessage.id }
+            where: { openaiMessageId: latestAssistantMessage.id }
           });
-          if (existing) continue;
-
-          // Extract the content text
-          let textContent = '';
-          if (oaiMessage.content && oaiMessage.content.length > 0) {
-            for (const contentItem of oaiMessage.content) {
-              if (contentItem.type === 'text') {
-                textContent += contentItem.text.value + " ";
+          
+          if (existing) {
+            console.log(`Latest assistant message ${latestAssistantMessage.id} already exists in DB (id: ${existing.id})`);
+          } else {
+            console.log(`Processing new assistant message ${latestAssistantMessage.id}`);
+            
+            // Extract the content text
+            let textContent = '';
+            if (latestAssistantMessage.content && latestAssistantMessage.content.length > 0) {
+              for (const contentItem of latestAssistantMessage.content) {
+                if (contentItem.type === 'text') {
+                  textContent += contentItem.text.value + " ";
+                }
               }
             }
-          }
-
-          // Create the message in our database
-          const newMessage = await prisma.message.create({
-            data: {
-              threadId,
-              role: 'assistant',
-              content: textContent.trim(),
-              openaiMessageId: oaiMessage.id
+            
+            textContent = textContent.trim();
+            console.log(`Extracted content (first 100 chars): ${textContent.substring(0, 100)}...`);
+            
+            if (textContent) {
+              // Create the message in our database
+              console.log(`Creating new message in DB for thread ${threadId}`);
+              const newMessage = await prisma.message.create({
+                data: {
+                  threadId,
+                  role: 'assistant',
+                  content: textContent,
+                  openaiMessageId: latestAssistantMessage.id
+                }
+              });
+              console.log(`Created message in DB with id ${newMessage.id}`);
+  
+              newMessages.push(newMessage);
+              
+              // Update thread's updatedAt
+              await prisma.thread.update({
+                where: { id: threadId },
+                data: { updatedAt: new Date() }
+              });
+            } else {
+              console.log(`No text content found in assistant message, skipping`);
             }
-          });
-
-          newMessages.push(newMessage);
+          }
+        } else {
+          console.log(`No assistant messages found in the thread despite run being completed`);
         }
-
-        // Update thread's updatedAt if we added messages
-        if (newMessages.length > 0) {
-          await prisma.thread.update({
-            where: { id: threadId },
-            data: { updatedAt: new Date() }
-          });
-        }
+      } else if (run.status === 'requires_action') {
+        // Handle function calling if needed
+        console.log(`Run requires action - function calling may be needed`);
       }
 
+      console.log(`Returning run status ${run.status} with ${newMessages.length} new messages`);
       return {
         status: run.status,
         messages: newMessages
