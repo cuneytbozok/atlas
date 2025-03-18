@@ -48,6 +48,30 @@ export default function ProjectChatPage() {
   const [project, setProject] = useState<{id: string, name: string, assistantId: string | null, vectorStoreId: string | null} | null>(null);
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
+  // Thread state
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [isLoadingThreads, setIsLoadingThreads] = useState(true);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [newThreadDialogOpen, setNewThreadDialogOpen] = useState(false);
+  const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [editThreadDialogOpen, setEditThreadDialogOpen] = useState(false);
+  const [editThreadTitle, setEditThreadTitle] = useState("");
+  const [isEditingThread, setIsEditingThread] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [threadToDelete, setThreadToDelete] = useState<string | null>(null);
+
+  // Message state
+  const [newMessage, setNewMessage] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [currentRun, setCurrentRun] = useState<Run | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Add state for mobile sidebar toggle
+  const [showSidebar, setShowSidebar] = useState(true);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
   // Make sure we have a project ID
   useEffect(() => {
     if (!projectId) {
@@ -80,29 +104,46 @@ export default function ProjectChatPage() {
     }
   }, [projectId]);
 
-  // Thread state
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [isLoadingThreads, setIsLoadingThreads] = useState(true);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [threadMessages, setThreadMessages] = useState<Message[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [newThreadDialogOpen, setNewThreadDialogOpen] = useState(false);
-  const [newThreadTitle, setNewThreadTitle] = useState("");
-  const [editThreadDialogOpen, setEditThreadDialogOpen] = useState(false);
-  const [editThreadTitle, setEditThreadTitle] = useState("");
-  const [isEditingThread, setIsEditingThread] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [threadToDelete, setThreadToDelete] = useState<string | null>(null);
+  // Define fetchThreads function before it's used in useEffect
+  const fetchThreads = async () => {
+    setIsLoadingThreads(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/threads`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch threads: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setThreads(data);
+      
+      // Select the first thread if none is selected
+      if (data.length > 0 && !selectedThreadId) {
+        setSelectedThreadId(data[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching threads:", error);
+      toast.error("Failed to load chat threads");
+    } finally {
+      setIsLoadingThreads(false);
+    }
+  };
 
-  // Message state
-  const [newMessage, setNewMessage] = useState("");
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [currentRun, setCurrentRun] = useState<Run | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-
-  // Add state for mobile sidebar toggle
-  const [showSidebar, setShowSidebar] = useState(true);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Define other functions that might be used in useEffect
+  const fetchMessages = async (threadId: string) => {
+    setIsLoadingMessages(true);
+    try {
+      const response = await fetch(`/api/threads/${threadId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch messages: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setThreadMessages(data.messages || []);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      toast.error("Failed to load chat messages");
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
 
   // Check if mobile on initial load and when window resizes
   useEffect(() => {
@@ -137,6 +178,38 @@ export default function ProjectChatPage() {
   useEffect(() => {
     fetchThreads();
   }, [projectId]);
+
+  const checkRunStatus = async () => {
+    if (!currentRun || !selectedThreadId) return;
+
+    try {
+      const response = await fetch(`/api/threads/${selectedThreadId}/runs/${currentRun.id}`);
+      if (!response.ok) {
+        throw new Error(`Failed to check run status: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Run status: ${data.status}`);
+      
+      // Update the run status
+      setCurrentRun({
+        ...currentRun,
+        status: data.status
+      });
+      
+      // If completed, fetch the new messages
+      if (data.status === "completed") {
+        fetchMessages(selectedThreadId);
+      } else if (data.status === "failed" || data.status === "cancelled") {
+        toast.error("Assistant failed to respond", {
+          description: "Please try again or contact support if the issue persists."
+        });
+      }
+    } catch (error) {
+      console.error("Error checking run status:", error);
+      setCurrentRun(null);
+    }
+  };
 
   // Handle run polling
   useEffect(() => {
@@ -230,45 +303,6 @@ export default function ProjectChatPage() {
       </div>
     );
   }
-
-  const fetchThreads = async () => {
-    setIsLoadingThreads(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}/threads`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch threads: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setThreads(data);
-      
-      // Select the first thread if none is selected
-      if (data.length > 0 && !selectedThreadId) {
-        setSelectedThreadId(data[0].id);
-      }
-    } catch (error) {
-      console.error("Error fetching threads:", error);
-      toast.error("Failed to load chat threads");
-    } finally {
-      setIsLoadingThreads(false);
-    }
-  };
-
-  const fetchMessages = async (threadId: string) => {
-    setIsLoadingMessages(true);
-    try {
-      const response = await fetch(`/api/threads/${threadId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setThreadMessages(data.messages || []);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast.error("Failed to load chat messages");
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  };
 
   const createThread = async () => {
     try {
@@ -397,70 +431,6 @@ export default function ProjectChatPage() {
       toast.error("Failed to send message");
     } finally {
       setIsSendingMessage(false);
-    }
-  };
-
-  const checkRunStatus = async () => {
-    if (!selectedThreadId || !currentRun) return;
-
-    try {
-      console.log(`Checking run status for ${selectedThreadId}, run: ${currentRun.id}, current status: ${currentRun.status}`);
-      
-      const response = await fetch(
-        `/api/threads/${selectedThreadId}/runs/${currentRun.id}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to check run status: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log(`Run status API response:`, result);
-      
-      // Update the current run status
-      setCurrentRun({ ...currentRun, status: result.status });
-      console.log(`Updated current run status to: ${result.status}`);
-
-      // If the run completed, add any new messages
-      if (result.status === "completed") {
-        console.log(`Run completed, received ${result.messages?.length || 0} new messages`);
-        
-        // If we got new messages, add them to the UI
-        if (result.messages && result.messages.length > 0) {
-          console.log(`Adding new messages to UI:`, result.messages);
-          
-          // Use a function to update state to ensure we're working with the latest state
-          setThreadMessages(prevMessages => {
-            const updatedMessages = [...prevMessages, ...result.messages];
-            console.log(`Updated thread messages total: ${updatedMessages.length}`);
-            return updatedMessages;
-          });
-          
-          // Always clear the currentRun when completed
-          console.log(`Clearing current run`);
-          setCurrentRun(null);
-          
-          // Also refresh the thread list to update timestamps
-          console.log(`Refreshing threads list`);
-          fetchThreads();
-        } else {
-          console.log(`No new messages to add despite completed status, fetching all messages`);
-          
-          // If no new messages were returned but run is completed,
-          // fetch all messages for the thread to ensure we have everything
-          fetchMessages(selectedThreadId);
-          
-          // Clear the current run
-          setCurrentRun(null);
-        }
-      } else if (result.status === "failed" || result.status === "cancelled" || result.status === "expired") {
-        console.log(`Run ${result.status}`);
-        toast.error(`Assistant response ${result.status}`);
-        setCurrentRun(null);
-      }
-    } catch (error) {
-      console.error("Error checking run status:", error);
-      // Don't show toast here as this is polled frequently
     }
   };
 
