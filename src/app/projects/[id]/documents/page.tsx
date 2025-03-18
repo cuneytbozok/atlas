@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,8 +35,9 @@ interface ProjectFile {
 
 export default function ProjectDocumentsPage() {
   const params = useParams();
-  const projectId = params?.id as string;
+  const router = useRouter();
   const { user, hasRole } = useAuth();
+  const projectId = params?.id as string;
   
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +48,13 @@ export default function ProjectDocumentsPage() {
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [fileDeleting, setFileDeleting] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [project, setProject] = useState<{
+    id: string;
+    name: string;
+    vectorStoreId: string | null;
+    assistantId: string | null;
+  } | null>(null);
 
   // Move formatFileSize to before it's used
   const formatFileSize = useCallback((bytes: number): string => {
@@ -566,6 +574,26 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  // Get project details including AI resources
+  useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch project details');
+        }
+        const data = await response.json();
+        setProject(data);
+      } catch (error) {
+        console.error('Error fetching project:', error);
+      }
+    };
+
+    if (projectId) {
+      fetchProject();
+    }
+  }, [projectId]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -582,6 +610,26 @@ export default function ProjectDocumentsPage() {
           </Link>
         </Button>
       </div>
+      
+      {/* Warning if AI resources are missing */}
+      {project && (!project.vectorStoreId || !project.assistantId) && (
+        <Alert variant="default" className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+          <AlertDescription className="flex justify-between items-center">
+            <div>
+              <p className="font-medium">AI Resources Missing</p>
+              <p className="text-sm mt-1">
+                This project doesn't have the necessary AI resources set up. 
+                Documents can be uploaded, but AI-powered search and chat may not work correctly.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${projectId}#atlas-ai`}>
+                View Details
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* Combined Documents Card */}
       <Card>

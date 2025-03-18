@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 interface Project {
   id: string;
@@ -63,6 +65,8 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
 
   const fetchProjects = async () => {
     try {
@@ -87,7 +91,28 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects();
-  }, [statusFilter]);
+    
+    // Check if OpenAI API key is configured
+    const checkApiKey = async () => {
+      try {
+        setIsCheckingApiKey(true);
+        const response = await fetch("/api/admin/settings/openai-api");
+        if (response.ok) {
+          const data = await response.json();
+          setHasApiKey(data.isSet);
+        } else {
+          setHasApiKey(false);
+        }
+      } catch (error) {
+        console.error("Error checking API key:", error);
+        setHasApiKey(false);
+      } finally {
+        setIsCheckingApiKey(false);
+      }
+    };
+
+    checkApiKey();
+  }, []);
 
   // Filter projects when search query changes
   useEffect(() => {
@@ -131,13 +156,32 @@ export default function ProjectsPage() {
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button id="new-project-button">New Project</Button>
+                <Button id="new-project-button" disabled={isCheckingApiKey || hasApiKey === false}>
+                  New Project
+                </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <CreateProjectForm onSuccess={handleCreateSuccess} onCancel={() => setIsDialogOpen(false)} />
               </DialogContent>
             </Dialog>
           </div>
+          
+          {hasApiKey === false && (
+            <Alert variant="default" className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <AlertDescription className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium">OpenAI API Key Not Configured</p>
+                  <p className="text-sm mt-1">
+                    An OpenAI API key is required to create projects with AI capabilities. 
+                    Without it, projects won't have access to AI assistants or document search.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/admin/settings">Configure API Key</Link>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <form onSubmit={handleSearch} className="flex-1">
@@ -383,14 +427,38 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
               setIncludeCreatorAsTeamMember(checked === true)
             }
           />
-          <Label htmlFor="creatorAsMember">
-            Include me as a team member
-          </Label>
+          <div className="flex items-center gap-1">
+            <Label htmlFor="creatorAsMember" className="cursor-pointer">
+              Include me as a team member
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[300px]">
+                  <p>When selected, you'll be added as a team member in addition to your role as the creator of the project. This gives you access to the project even if you're not the Project Manager.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
         
         {/* Project Manager Selection */}
         <div className="grid gap-2">
-          <Label>Project Manager <span className="text-destructive">*</span></Label>
+          <Label className="flex items-center gap-1">
+            Project Manager <span className="text-destructive">*</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground ml-1 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[300px]">
+                  <p>Project Managers have permissions to manage the project, including adding team members, uploading files, and configuring project settings.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
           <div className="relative">
             <Input 
               placeholder="Search for a project manager" 
@@ -446,7 +514,19 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
         </div>
         
         <div className="grid gap-2">
-          <Label>Team Members</Label>
+          <Label className="flex items-center gap-1">
+            Team Members
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground ml-1 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[300px]">
+                  <p>Team Members have access to use project resources, participate in chats, and view documents but have limited management capabilities.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
           <div className="relative">
             <Input 
               placeholder="Search users by name or email" 

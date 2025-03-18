@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X, ArrowLeft, Menu } from "lucide-react";
+import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X, ArrowLeft, Menu, Brain, Loader } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -41,8 +41,12 @@ interface Run {
 export default function ProjectChatPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const projectId = params?.id as string;
+
+  // Project state
+  const [project, setProject] = useState<{id: string, name: string, assistantId: string | null, vectorStoreId: string | null} | null>(null);
+  const [isLoadingProject, setIsLoadingProject] = useState(true);
 
   // Make sure we have a project ID
   useEffect(() => {
@@ -51,6 +55,30 @@ export default function ProjectChatPage() {
       toast.error('Project ID is missing');
     }
   }, [projectId, router]);
+
+  // Fetch project details
+  useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        setIsLoadingProject(true);
+        const response = await fetch(`/api/projects/${projectId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch project details');
+        }
+        const data = await response.json();
+        setProject(data);
+      } catch (error) {
+        console.error('Error fetching project:', error);
+        toast.error('Failed to load project details');
+      } finally {
+        setIsLoadingProject(false);
+      }
+    };
+
+    if (projectId) {
+      fetchProject();
+    }
+  }, [projectId]);
 
   // Thread state
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -158,6 +186,50 @@ export default function ProjectChatPage() {
       fetchMessages(selectedThreadId);
     }
   }, [selectedThreadId]);
+
+  // Check if the project has AI resources
+  const hasAiResources = project && project.assistantId && project.vectorStoreId;
+
+  // Render error state if the project is missing AI resources
+  if (!isLoadingProject && !hasAiResources) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-6">
+        <Brain className="h-16 w-16 mb-4 text-muted-foreground" />
+        <h3 className="text-xl font-medium mb-2">AI Resources Not Available</h3>
+        <p className="text-muted-foreground mb-2 max-w-md">
+          This project doesn't have the required AI resources (assistant and/or vector store).
+        </p>
+        <p className="text-sm text-muted-foreground mb-6 max-w-md">
+          This likely happened because the OpenAI API key was not configured when the project was created.
+        </p>
+        
+        <div className="flex gap-3">
+          <Button asChild variant="default">
+            <Link href={`/projects/${projectId}#atlas-ai`}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Project
+            </Link>
+          </Button>
+          
+          {hasRole('ADMIN') && (
+            <Button asChild variant="outline">
+              <Link href="/admin/settings">
+                Configure API Key
+              </Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingProject) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const fetchThreads = async () => {
     setIsLoadingThreads(true);

@@ -815,11 +815,115 @@ export default function ProjectPage() {
 
     {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
     <div className="mt-6 flex flex-col md:flex-row gap-4">
+      {/* Display AI resources setup section if they're missing */}
+      {((!project.vectorStoreId || !project.assistantId) && hasRole("ADMIN")) && (
+        <Card className="md:w-full mb-4" id="atlas-ai">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideBrain className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">AI Resources Missing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="default" className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <AlertDescription>
+                <p>This project is missing its AI resources (vector store and/or assistant).</p>
+                <p className="text-sm mt-1">
+                  This likely happened because the OpenAI API key was not configured when the project was created.
+                </p>
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={async () => {
+                  try {
+                    setIsCreatingAiResources(true);
+                    const response = await fetch("/api/admin/projects/setup-ai", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        projectId: project.id,
+                      }),
+                    });
+                    
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      throw new Error(errorData.message || "Failed to set up AI resources");
+                    }
+                    
+                    const data = await response.json();
+                    refreshProject();
+                    toast.success("AI Resources Created", {
+                      description: "Vector store and assistant have been set up successfully"
+                    });
+                  } catch (error) {
+                    console.error("Error setting up AI resources:", error);
+                    const errorMessage = error instanceof Error ? error.message : "Failed to set up AI resources";
+                    toast.error("Error", {
+                      description: errorMessage
+                    });
+                  } finally {
+                    setIsCreatingAiResources(false);
+                  }
+                }}
+                disabled={isCreatingAiResources}
+              >
+                {isCreatingAiResources ? (
+                  <>
+                    <LucideLoader className="mr-2 h-4 w-4 animate-spin" />
+                    Setting Up...
+                  </>
+                ) : (
+                  <>
+                    <LucideBrain className="mr-2 h-4 w-4" />
+                    Set Up AI Resources
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                asChild
+              >
+                <Link href="/admin/settings">
+                  Check API Configuration
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Display message for non-admin users if AI resources are missing */}
+      {((!project.vectorStoreId || !project.assistantId) && !hasRole("ADMIN")) && (
+        <Card className="md:w-full mb-4" id="atlas-ai">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideBrain className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">AI Features Limited</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="default" className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <AlertDescription>
+                <p>This project has limited AI capabilities.</p>
+                <p className="text-sm mt-1">
+                  AI features like chat assistant and document search are currently unavailable. Please contact your administrator.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="md:w-1/2">
         <CardHeader className="pb-2">
           <div className="mb-2">
             <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
-              </div>
+          </div>
           <CardTitle className="text-base">Chat with ATLAS</CardTitle>
         </CardHeader>
         <CardContent>
@@ -833,20 +937,20 @@ export default function ProjectPage() {
               Open Chat
             </Link>
           </Button>
-            </CardContent>
-          </Card>
+        </CardContent>
+      </Card>
       
       <Card className="md:w-1/2">
         <CardHeader className="pb-2">
           <div className="mb-2">
             <LucideFileText className="h-5 w-5 text-muted-foreground" />
-        </div>
+          </div>
           <CardTitle className="text-base">Documents</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-sm mb-4">
             Access and manage all documents related to this project
-      </div>
+          </div>
           
           <Button asChild className="w-full">
             <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">

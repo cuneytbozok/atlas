@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LucideLoader, LucideSearch, LucideX, LucideUserPlus, LucideUsers, LucideShield } from "lucide-react";
+import { LucideLoader, LucideSearch, LucideX, LucideUserPlus, LucideUsers, LucideShield, HelpCircle } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Role {
   id: string;
@@ -291,6 +292,54 @@ export default function AdminUsersPage() {
           </div>
 
           <Separator />
+          
+          {/* Role Descriptions Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">
+                  <div className="flex items-center gap-2">
+                    <LucideShield className="h-5 w-5 text-muted-foreground" />
+                    <span>Role Descriptions</span>
+                  </div>
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Below are the roles that can be assigned to users. Each role has specific permissions and capabilities.
+              </p>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="border rounded-md p-3">
+                  <h3 className="font-medium flex items-center gap-1.5">
+                    <LucideShield className="h-4 w-4 text-destructive" />
+                    Administrator
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Full access to all features including user management, app settings, and all project operations.
+                  </p>
+                </div>
+                <div className="border rounded-md p-3">
+                  <h3 className="font-medium flex items-center gap-1.5">
+                    <LucideShield className="h-4 w-4 text-amber-500" />
+                    Project Manager
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Can create and manage projects, assign team members, and manage project files and resources.
+                  </p>
+                </div>
+                <div className="border rounded-md p-3">
+                  <h3 className="font-medium flex items-center gap-1.5">
+                    <LucideShield className="h-4 w-4 text-primary" />
+                    Team Member
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Basic access to participate in assigned projects, use chat, and view project resources.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -373,19 +422,28 @@ export default function AdminUsersPage() {
                               <div className="flex flex-wrap gap-2">
                                 {user.userRoles.map((userRole) => (
                                   <div key={userRole.id} className="flex items-center gap-1">
-                                    <Badge variant="outline" className="flex items-center gap-1">
-                                      <LucideShield className="h-3 w-3" />
-                                      {userRole.role.displayName || userRole.role.name}
-                                      <button
-                                        onClick={() => {
-                                          setRoleToRemove(userRole);
-                                          setIsAlertDialogOpen(true);
-                                        }}
-                                        className="ml-1 rounded-full hover:bg-muted p-0.5"
-                                      >
-                                        <LucideX className="h-3 w-3" />
-                                      </button>
-                                    </Badge>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Badge variant="outline" className="flex items-center gap-1">
+                                            <LucideShield className="h-3 w-3" />
+                                            {userRole.role.displayName || userRole.role.name}
+                                            <button
+                                              onClick={() => {
+                                                setRoleToRemove(userRole);
+                                                setIsAlertDialogOpen(true);
+                                              }}
+                                              className="ml-1 rounded-full hover:bg-muted p-0.5"
+                                            >
+                                              <LucideX className="h-3 w-3" />
+                                            </button>
+                                          </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>{userRole.role.description || 'No description available'}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 ))}
                                 {user.userRoles.length === 0 && (
@@ -449,7 +507,19 @@ export default function AdminUsersPage() {
                                                 key={role.id}
                                                 value={role.id}
                                               >
-                                                {role.displayName || role.name}
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <div className="flex items-center justify-between w-full">
+                                                        <span>{role.displayName || role.name}</span>
+                                                        <HelpCircle className="h-3 w-3 ml-2 text-muted-foreground" />
+                                                      </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                      <p>{role.description || 'No description available'}</p>
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
                                               </SelectItem>
                                             ))}
                                         </SelectContent>
