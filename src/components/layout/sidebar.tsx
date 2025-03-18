@@ -64,12 +64,6 @@ export function Sidebar({ className }: SidebarProps) {
               label="Projects"
               collapsed={collapsed}
             />
-            <NavItem
-              href="/team"
-              icon={<LucideUsers className="h-5 w-5" />}
-              label="Team"
-              collapsed={collapsed}
-            />
             
             {isAdmin && (
               <>
@@ -95,12 +89,6 @@ export function Sidebar({ className }: SidebarProps) {
               href="/profile"
               icon={<LucideUser className="h-5 w-5" />}
               label="Profile"
-              collapsed={collapsed}
-            />
-            <NavItem
-              href="/settings"
-              icon={<LucideSettings className="h-5 w-5" />}
-              label="Settings"
               collapsed={collapsed}
             />
           </TooltipProvider>

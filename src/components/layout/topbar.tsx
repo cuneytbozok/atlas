@@ -103,12 +103,6 @@ export function Topbar({ className }: TopbarProps) {
                 <span>Profile</span>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <LucideSettings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LucideLogOut className="mr-2 h-4 w-4" />
