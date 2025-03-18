@@ -25,6 +25,11 @@ out
 *.swp
 *.swo
 
+# Development scripts and utilities
+scripts/
+scripts/generate-favicon.js
+scripts/test-*.js
+
 # Misc
 README.md
 docker-compose.yml
