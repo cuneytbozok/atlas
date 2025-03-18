@@ -25,6 +25,12 @@ import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TopbarProps {
   className?: string;
@@ -54,6 +60,18 @@ export function Topbar({ className }: TopbarProps) {
       )}
     >
       <div className="flex items-center gap-4">
+        <div className="flex items-center">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/" className="font-bold text-lg mr-4">ATLAS</Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Advanced Team Learning Assistant System</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <div className="relative">
           <LucideSearch className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -89,7 +107,9 @@ export function Topbar({ className }: TopbarProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2">
               <Avatar className="h-6 w-6 bg-primary">
-                <AvatarFallback className="text-xs font-medium text-primary-foreground">{userInitial}</AvatarFallback>
+                <AvatarFallback className="text-xs font-medium text-primary-foreground">
+                  {userInitial}
+                </AvatarFallback>
               </Avatar>
               <span>{user?.name || user?.email || 'User'}</span>
             </Button>

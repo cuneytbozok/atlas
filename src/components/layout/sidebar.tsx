@@ -24,6 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { Logo } from "@/components/ui/logo";
 
 interface SidebarProps {
   className?: string;
@@ -44,10 +45,11 @@ export function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex h-14 items-center border-b px-3">
         <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
-          <Avatar className="h-8 w-8 bg-primary">
-            <AvatarFallback className="text-primary-foreground font-bold">A</AvatarFallback>
-          </Avatar>
-          {!collapsed && <span className="text-lg font-semibold">ATLAS</span>}
+          {collapsed ? (
+            <Logo variant="icon-only" size="md" />
+          ) : (
+            <Logo variant="default" size="md" />
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-auto py-4">

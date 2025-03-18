@@ -1,0 +1,16 @@
+{
+  "name": "ATLAS - Advanced Team Learning Assistant System",
+  "short_name": "ATLAS",
+  "description": "AI-powered workspace for enhanced team learning and productivity",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/branding/logo.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+} 

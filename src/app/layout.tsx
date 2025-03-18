@@ -17,8 +17,25 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ATLAS",
-  description: "AI-powered workspace for enhanced productivity",
+  title: "ATLAS - Advanced Team Learning Assistant System",
+  description: "AI-powered workspace for enhanced team learning and productivity",
+  icons: {
+    icon: [
+      { url: "/branding/logo.svg" },
+      { url: "/branding/favicon.ico" },
+    ],
+    apple: [
+      { url: "/branding/logo.svg" },
+    ],
+  },
+  manifest: "/manifest.json",
+  themeColor: "#0F172A",
+  viewport: "width=device-width, initial-scale=1",
+  applicationName: "ATLAS",
+  keywords: ["AI", "Learning", "Team", "Productivity", "Assistant"],
+  authors: [{ name: "ATLAS Team" }],
+  creator: "ATLAS Team",
+  publisher: "ATLAS",
 };
 
 export default function RootLayout({
