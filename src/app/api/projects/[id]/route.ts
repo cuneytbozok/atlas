@@ -18,7 +18,8 @@ export async function GET(
       );
     }
 
-    const projectId: string = params.id;
+    // Extract projectId from params and ensure it's a string
+    const { id: projectId } = params;
 
     // Find the user
     const user = await prisma.user.findUnique({
@@ -106,97 +107,45 @@ export async function PATCH(
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const projectId: string = params.id;
-    
+    // Extract projectId from params and ensure it's a string
+    const { id: projectId } = params;
+
+    // Find the user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email as string },
+      select: { id: true }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
     try {
+      // Parse the request body
       const body = await request.json();
-      console.log("Project update request body:", body);
-      const { name, description, status, projectManagerId } = body;
-
-      // Find the user
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
-        select: { id: true }
-      });
-
-      if (!user) {
-        return NextResponse.json(
-          { message: "User not found" },
-          { status: 404 }
-        );
-      }
-
-      // Get the project first
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { 
-          id: true,
-          createdById: true 
-        }
-      });
-
-      if (!project) {
-        return NextResponse.json(
-          { message: "Project not found" },
-          { status: 404 }
-        );
-      }
-
-      // Check if user is the creator (simplest check)
-      const isCreator = project.createdById === user.id;
-      console.log("Creator check:", { userId: user.id, createdById: project.createdById, isCreator });
-
-      // If not creator, check if user is an admin
-      let hasPermission = isCreator;
       
-      if (!hasPermission) {
-        // Check if user is admin of the project
-        const userMembership = await prisma.projectMember.findFirst({
-          where: {
-            projectId,
-            userId: user.id,
-          },
-          include: {
-            role: true
-          }
-        });
+      const { 
+        name, 
+        description, 
+        status, 
+        projectManagerId
+      } = body;
 
-        console.log("User membership:", userMembership);
-        
-        if (userMembership && userMembership.role) {
-          // Check if role name is admin (case insensitive)
-          const roleName = userMembership.role.name.toUpperCase();
-          hasPermission = roleName === "ADMIN";
-          console.log("Role check:", { roleName, hasPermission });
-        }
-      }
-
-      if (!hasPermission) {
-        return NextResponse.json(
-          { message: "You don't have permission to update this project" },
-          { status: 403 }
-        );
-      }
-
-      // Validate status if provided
-      if (status && !["active", "completed", "archived"].includes(status)) {
-        return NextResponse.json(
-          { message: "Invalid status value" },
-          { status: 400 }
-        );
-      }
-
-      console.log("Updating project with data:", {
-        name: name !== undefined ? name : undefined,
-        description: description !== undefined ? description : undefined,
-        status: status !== undefined ? status : undefined,
+      // Log the update request
+      console.log(`Updating project ${projectId} with:`, {
+        name,
+        description,
+        status,
         projectManagerId: projectManagerId !== undefined ? projectManagerId : undefined,
       });
 
@@ -365,8 +314,14 @@ export async function PATCH(
             }
           });
 
+          // If name or description changed, update the assistant too
+          await updateAssistantIfNeeded(projectId, finalProject, name, description);
+
           return NextResponse.json(finalProject);
         }
+
+        // If name or description changed, update the assistant too
+        await updateAssistantIfNeeded(projectId, updatedProject, name, description);
 
         return NextResponse.json(updatedProject);
       } catch (prismaError) {
@@ -393,6 +348,62 @@ export async function PATCH(
   }
 }
 
+// Helper function to update the assistant if needed
+async function updateAssistantIfNeeded(
+  projectId: string, 
+  project: any, 
+  newName?: string, 
+  newDescription?: string | null
+) {
+  if (
+    (newName !== undefined || newDescription !== undefined) && 
+    project && 
+    project.assistantId
+  ) {
+    try {
+      console.log(`Initiating assistant update for project ${projectId}`);
+      console.log(`Project details being updated: Name=${newName !== undefined ? newName : 'unchanged'}, Description=${newDescription !== undefined ? 'provided' : 'unchanged'}`);
+      
+      // Import AIService directly
+      const { AIService } = await import('@/lib/services/ai-service');
+      
+      // Use the actual name/description values for the update
+      const projectName = newName !== undefined ? newName : project.name;
+      const projectDescription = newDescription !== undefined ? newDescription : project.description;
+      
+      console.log(`Directly calling AIService.updateAssistant with ID ${project.assistantId}`);
+      console.log(`Using name: "${projectName}", description: "${projectDescription}"`);
+      
+      // Call AIService directly instead of making an HTTP request
+      const updatedAssistant = await AIService.updateAssistant(
+        project.assistantId,
+        projectName,
+        projectDescription
+      );
+      
+      console.log("Assistant updated successfully:", {
+        id: updatedAssistant.id,
+        name: updatedAssistant.name,
+        updatedAt: updatedAssistant.updatedAt
+      });
+      
+      return updatedAssistant;
+    } catch (assistantError) {
+      // Just log the error, don't fail the whole operation
+      console.error("Error updating assistant:", assistantError);
+      if (assistantError instanceof Error) {
+        console.error(assistantError.stack);
+      }
+    }
+  } else {
+    console.log("No assistant update needed", {
+      hasNameChange: newName !== undefined,
+      hasDescriptionChange: newDescription !== undefined,
+      hasAssistantId: project?.assistantId ? true : false
+    });
+  }
+}
+
 // DELETE - Delete a project
 export async function DELETE(
   request: Request,
@@ -408,7 +419,8 @@ export async function DELETE(
       );
     }
 
-    const projectId: string = params.id;
+    // Extract projectId from params and ensure it's a string
+    const { id: projectId } = params;
 
     // Find the user
     const user = await prisma.user.findUnique({

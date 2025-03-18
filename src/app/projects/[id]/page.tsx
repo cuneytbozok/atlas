@@ -174,6 +174,11 @@ export default function ProjectPage() {
   }>>([]);
   const [canManageFiles, setCanManageFiles] = useState(false);
   const [canEditProject, setCanEditProject] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{
+    assistant: { id: string, openaiId: string | null } | null;
+    vectorStore: { id: string, openaiId: string | null } | null;
+  }>({ assistant: null, vectorStore: null });
+  const [isLoadingDebugInfo, setIsLoadingDebugInfo] = useState(false);
 
   // Add effect to scroll to ATLAS AI section when hash is present
   useEffect(() => {
@@ -378,7 +383,12 @@ export default function ProjectPage() {
 
   const handleProjectUpdated = () => {
     refreshProject();
-    toast.success("Project updated successfully");
+    
+    // Show a more comprehensive success message
+    toast.success("Project Updated", {
+      description: "Project details and AI assistant have been updated successfully"
+    });
+    
     setIsEditDialogOpen(false);
   };
 
@@ -455,6 +465,54 @@ export default function ProjectPage() {
       setIsDeleting(false);
     }
   };
+
+  // Fetch detailed debug info when modal is opened
+  useEffect(() => {
+    if (isDebugModalOpen && project) {
+      const fetchDebugInfo = async () => {
+        setIsLoadingDebugInfo(true);
+        try {
+          let assistantInfo = null;
+          let vectorStoreInfo = null;
+          
+          // Fetch assistant info if exists
+          if (project.assistantId) {
+            const assistantResponse = await fetch(`/api/assistants/${project.assistantId}`);
+            if (assistantResponse.ok) {
+              const assistantData = await assistantResponse.json();
+              assistantInfo = {
+                id: assistantData.id,
+                openaiId: assistantData.openaiAssistantId
+              };
+            }
+          }
+          
+          // Fetch vector store info if exists
+          if (project.vectorStoreId) {
+            const vectorStoreResponse = await fetch(`/api/vector-stores/${project.vectorStoreId}`);
+            if (vectorStoreResponse.ok) {
+              const vectorStoreData = await vectorStoreResponse.json();
+              vectorStoreInfo = {
+                id: vectorStoreData.id,
+                openaiId: vectorStoreData.openaiVectorStoreId
+              };
+            }
+          }
+          
+          setDebugInfo({
+            assistant: assistantInfo,
+            vectorStore: vectorStoreInfo
+          });
+        } catch (error) {
+          console.error("Error fetching debug info:", error);
+        } finally {
+          setIsLoadingDebugInfo(false);
+        }
+      };
+      
+      fetchDebugInfo();
+    }
+  }, [isDebugModalOpen, project]);
 
   if (isLoading) {
     return (
@@ -951,18 +1009,49 @@ export default function ProjectPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
-              <div>
-                <h3 className="text-sm font-medium mb-1">Vector Store ID</h3>
-                <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                  {project.vectorStoreId || "Not available"}
-                </code>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium mb-1">Assistant ID</h3>
-                <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                  {project.assistantId || "Not available"}
-                </code>
-              </div>
+              {isLoadingDebugInfo ? (
+                <div className="flex items-center justify-center py-4">
+                  <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Database IDs</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-xs text-muted-foreground">Vector Store ID:</span>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {project.vectorStoreId || "Not available"}
+                        </code>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">Assistant ID:</span>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {project.assistantId || "Not available"}
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">OpenAI IDs</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-xs text-muted-foreground">Vector Store OpenAI ID:</span>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {debugInfo.vectorStore?.openaiId || "Not available"}
+                        </code>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">Assistant OpenAI ID:</span>
+                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                          {debugInfo.assistant?.openaiId || "Not available"}
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </DialogContent>
         </Dialog>

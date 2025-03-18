@@ -752,4 +752,105 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       return false;
     }
   }
+
+  /**
+   * Updates an assistant with new project details
+   * @param assistantId - ID of the assistant in our database
+   * @param projectName - Updated name of the project
+   * @param projectDescription - Updated description of the project
+   * @returns The updated assistant from our database
+   */
+  static async updateAssistant(
+    assistantId: string,
+    projectName: string,
+    projectDescription: string | null
+  ) {
+    try {
+      // First get the assistant from our database to get the OpenAI ID
+      const assistant = await prisma.assistant.findUnique({
+        where: { id: assistantId }
+      });
+
+      if (!assistant?.openaiAssistantId) {
+        throw new Error(`Assistant ${assistantId} not found or missing OpenAI ID`);
+      }
+
+      const openaiAssistantId = assistant.openaiAssistantId;
+      console.log(`Updating assistant ${assistantId} (OpenAI ID: ${openaiAssistantId})`);
+      console.log(`New project details: Name = "${projectName}", Description = "${projectDescription}"`);
+
+      // Get the OpenAI client
+      const client = await this.getClient();
+
+      // Create updated system instructions based on the project
+      const instructions = `You are an AI assistant for the project "${projectName}". \
+${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
+\nYour role is to help users with this project by answering questions, providing insights, and assisting with tasks. \
+\nWhen users ask about the project, utilize the associated files and knowledge to provide accurate information.`;
+
+      // Log the new instructions
+      console.log(`New instructions: ${instructions}`);
+
+      // Extract and handle configuration safely
+      let existingTools = ["file_search"];
+      let existingProjectId = null;
+      
+      if (assistant.configuration && typeof assistant.configuration === 'object') {
+        const config = assistant.configuration as Record<string, any>;
+        existingTools = Array.isArray(config.tools) ? config.tools : existingTools;
+        existingProjectId = config.projectId || existingProjectId;
+      }
+
+      // Prepare update parameters
+      const updateParams = {
+        name: `${projectName} Assistant`,
+        description: `Assistant for project: ${projectName}`,
+        instructions: instructions,
+      };
+
+      console.log(`Sending update to OpenAI with params:`, JSON.stringify(updateParams, null, 2));
+
+      // Update the assistant in OpenAI
+      const updatedAssistant = await client.beta.assistants.update(
+        openaiAssistantId,
+        updateParams
+      );
+
+      console.log(`Response from OpenAI:`, JSON.stringify({
+        id: updatedAssistant.id,
+        name: updatedAssistant.name,
+        description: updatedAssistant.description,
+        instructions: updatedAssistant.instructions ? updatedAssistant.instructions.substring(0, 100) + "..." : null
+      }, null, 2));
+
+      console.log(`Successfully updated assistant in OpenAI: ${openaiAssistantId}`);
+
+      // Update the assistant in our database
+      const dbAssistant = await prisma.assistant.update({
+        where: { id: assistantId },
+        data: {
+          name: `${projectName} Assistant`,
+          configuration: {
+            instructions: instructions,
+            tools: existingTools,
+            projectId: existingProjectId
+          }
+        }
+      });
+
+      console.log(`Successfully updated assistant in database: ${assistantId}`);
+
+      return dbAssistant;
+    } catch (error) {
+      console.error(`Error updating assistant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (error instanceof Error && error.stack) {
+        console.error(`Stack trace: ${error.stack}`);
+      }
+      logger.error(error, {
+        action: 'update_assistant',
+        assistantId
+      });
+      throw error;
+    }
+  }
 } 
