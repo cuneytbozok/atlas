@@ -2,7 +2,7 @@
 
 This is a Next.js application that provides an AI-powered workspace for enhanced team learning and productivity.
 
-![ATLAS Banner](docs/images/atlas-banner.png)
+![ATLAS Banner](docs/images/atlas-logo.png)
 
 ## Getting Started
 
