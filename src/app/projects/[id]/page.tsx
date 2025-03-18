@@ -542,522 +542,515 @@ export default function ProjectPage() {
   // Main return for the project page
   return (
         <div className="space-y-6">
-      <div className="space-y-2 mb-6">
-        <h1 className="text-display">Project Overview</h1>
-        <p className="text-muted-foreground text-lg">
-          Manage and view details for {project.name}
-        </p>
-      </div>
-      
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
             <h2 className="text-h2">{project.name}</h2>
             {project.status && (
                 <div className={`rounded-full px-3 py-1 text-sm ${
                   project.status === "active" 
                     ? "bg-success/20 text-success" 
                     : project.status === "completed" 
-                      ? "bg-info/20 text-info" 
-                      : "bg-muted text-muted-foreground"
+                    ? "bg-tertiary/20 text-tertiary"
+                    : "bg-warning/20 text-warning"
                 }`}>
-                {safeCharAt(project.status, 0) + (project.status.slice(1) || '')}
+                  {safeCharAt(project.status, 0).toUpperCase() + project.status.slice(1)}
                 </div>
-            )}
-              </div>
-              <p className="text-muted-foreground mt-1">
-            {project.description || "No description provided"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button asChild variant="secondary">
-                <Link href={`/projects/${project.id}/chat`}>
-                  <MessagesSquare className="h-4 w-4 mr-2" />
-                  Chat
-                </Link>
-              </Button>
-              
-              {canEditProject && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsEditDialogOpen(true)}
-                >
-                  <LucidePencil className="mr-2 h-4 w-4" />
-                  Edit Project
-                </Button>
               )}
-
-              {canDeleteProject && (
-                <Button 
-                  variant="destructive" 
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                >
-                  <LucideTrash className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
-              )}
-            </div>
           </div>
+            {project.description && (
+              <p className="text-muted-foreground mt-1">{project.description}</p>
+            )}
+        </div>
+        <div className="flex gap-2">
+          <Button asChild variant="secondary">
+            <Link href={`/projects/${project.id}/chat`}>
+              <MessagesSquare className="h-4 w-4 mr-2" />
+              Chat
+            </Link>
+          </Button>
+          
+          {canEditProject && (
+            <Button 
+              variant="outline" 
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <LucidePencil className="mr-2 h-4 w-4" />
+              Edit Project
+            </Button>
+          )}
 
-          <Separator />
+          {canDeleteProject && (
+            <Button 
+              variant="destructive" 
+              onClick={() => setIsDeleteDialogOpen(true)}
+            >
+              <LucideTrash className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          )}
+        </div>
+      </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-        <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-              <LucideFileText className="h-5 w-5 text-muted-foreground" />
-                </div>
-            <CardTitle className="text-base">Project Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-                <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
-                  </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
-                <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
+      <Separator />
+
+      <div className="grid gap-6 md:grid-cols-3">
+    <Card className="h-auto">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+          <LucideFileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+        <CardTitle className="text-base">Project Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+            <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
               </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
-                <p className="mt-1">{formattedCreatedDate}</p>
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
+            <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
+            <p className="mt-1">{formattedCreatedDate}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
+            <p className="mt-1">{formattedUpdatedDate}</p>
               </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
-                <p className="mt-1">{formattedUpdatedDate}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+    <Card className="h-auto">
+          <CardHeader className="pb-2">
+            <div className="mb-2">
+              <LucideUsers className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-base">Team Members</CardTitle>
+          </CardHeader>
+          <CardContent>
+        <div className="space-y-3">
+          {(() => {
+            const projectManager = findProjectManager(project as Project);
+            return projectManager && (
+              <div className="border-b pb-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>
+                      {getInitials(projectManager)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium">{getDisplayName(projectManager)}</span>
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{getEmail(projectManager)}</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-        <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-                  <LucideUsers className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-base">Team Members</CardTitle>
-              </CardHeader>
-              <CardContent>
-            <div className="space-y-3">
+              </div>
+            );
+          })()}
+          
+          {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
+            <>
               {(() => {
                 const projectManager = findProjectManager(project as Project);
-                return projectManager && (
-                  <div className="border-b pb-2 mb-2">
-                    <div className="flex items-center gap-2">
+                return project.members
+                  .filter(member => !projectManager || member.id !== projectManager.id)
+                  .slice(0, 3)
+                  .map((member, index) => (
+                    <div key={member.id || index} className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>
-                          {getInitials(projectManager)}
+                          {getInitials(member)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-medium">{getDisplayName(projectManager)}</span>
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{getEmail(projectManager)}</span>
+                        <span className="text-sm">{getDisplayName(member)}</span>
+                        <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
                       </div>
                     </div>
+                  ));
+              })()}
+              
+              {(() => {
+                const projectManager = findProjectManager(project as Project);
+                const filteredMembers = project.members.filter(member => !projectManager || member.id !== projectManager.id);
+                return filteredMembers.length > 3 && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    +{filteredMembers.length - 3} more team members
                   </div>
                 );
               })()}
-              
-              {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
-                <>
-                  {(() => {
-                    const projectManager = findProjectManager(project as Project);
-                    return project.members
-                      .filter(member => !projectManager || member.id !== projectManager.id)
-                      .slice(0, 3)
-                      .map((member, index) => (
-                        <div key={member.id || index} className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback>
-                              {getInitials(member)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <span className="text-sm">{getDisplayName(member)}</span>
-                            <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
-                          </div>
-                        </div>
-                      ));
-                  })()}
-                  
-                  {(() => {
-                    const projectManager = findProjectManager(project as Project);
-                    const filteredMembers = project.members.filter(member => !projectManager || member.id !== projectManager.id);
-                    return filteredMembers.length > 3 && (
-                      <div className="text-sm text-muted-foreground mt-2">
-                        +{filteredMembers.length - 3} more team members
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No team members yet</p>
-              )}
-              
-              <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    <LucideUsers className="h-4 w-4 mr-2" />
-                    Manage Team
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
-                  <ManageTeamForm 
-                    project={{
-                      id: project.id,
-                      name: project.name,
-                      members: project.members,
-                      projectManager: findProjectManager(project as Project)
-                    }} 
-                    onMemberAdded={handleMemberAdded}
-                    onMemberRemoved={handleMemberRemoved}
-                    onClose={() => setIsManageTeamDialogOpen(false)} 
-                  />
-                </DialogContent>
-              </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-
-        <Card className="h-auto">
-              <CardHeader className="pb-2">
-                <div className="mb-2">
-              <LucideUpload className="h-5 w-5 text-muted-foreground" />
-                </div>
-            <CardTitle className="text-base">Files</CardTitle>
-              </CardHeader>
-              <CardContent>
-            <div 
-              className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
-                isDragging 
-                  ? "border-primary bg-primary/5" 
-                  : "border-muted-foreground/20 hover:border-primary/50"
-              }`}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground mb-1">
-                Drag and drop files here or
-              </p>
-              <div>
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
-                    Browse Files
-                  </Button>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileInputChange}
-                  />
-                </label>
-              </div>
-            </div>
-
-            {fileUploads.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {fileUploads.map(file => (
-                  <div key={file.id} className="border rounded-md p-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2 truncate">
-                        <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="text-sm truncate">{file.name}</span>
-                      </div>
-                      {canManageFiles && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6" 
-                          onClick={() => handleRemoveFile(file.id)}
-                        >
-                          <LucideTrash className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="w-full">
-                      <Progress value={file.progress} className="h-1" />
-                    </div>
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        {formatFileSize(file.size)}
-                      </span>
-                      <span className={`text-xs ${file.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        {file.status === 'uploading' 
-                          ? `${file.progress}%` 
-                          : file.status === 'complete' 
-                            ? 'Complete' 
-                            : 'Error'}
-                      </span>
-                    </div>
-                    {file.status === 'error' && file.error && (
-                      <div className="mt-1 text-xs text-destructive">
-                        {file.error}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {/* Add a button to view all files */}
-            <div className="mt-4">
-              <Button variant="outline" asChild className="w-full">
-                <Link href={`/projects/${projectId}/documents`} className="flex items-center justify-center gap-2">
-                  <LucideFileText className="h-4 w-4" />
-                  View All Files
-                </Link>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">No team members yet</p>
+          )}
+          
+          <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full mt-2">
+                <LucideUsers className="h-4 w-4 mr-2" />
+                Manage Team
               </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <ManageTeamForm 
+                project={{
+                  id: project.id,
+                  name: project.name,
+                  members: project.members,
+                  projectManager: findProjectManager(project as Project)
+                }} 
+                onMemberAdded={handleMemberAdded}
+                onMemberRemoved={handleMemberRemoved}
+                onClose={() => setIsManageTeamDialogOpen(false)} 
+              />
+            </DialogContent>
+          </Dialog>
             </div>
-              </CardContent>
-            </Card>
-          </div>
+          </CardContent>
+        </Card>
 
-      {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
-      <div className="mt-6 flex flex-col md:flex-row gap-4">
-        <Card className="md:w-1/2">
+    <Card className="h-auto">
           <CardHeader className="pb-2">
             <div className="mb-2">
-              <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
-                </div>
-            <CardTitle className="text-base">Chat with ATLAS</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm mb-4">
-              Chat with your AI assistant about this project and its documents
+          <LucideUpload className="h-5 w-5 text-muted-foreground" />
             </div>
-            
-            <Button asChild className="w-full">
-              <Link href={`/projects/${project.id}/chat`} className="flex items-center justify-center gap-2">
-                <LucideMessageSquare className="h-4 w-4" />
-                Open Chat
-              </Link>
-            </Button>
-              </CardContent>
-            </Card>
-        
-        <Card className="md:w-1/2">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-              <LucideFileText className="h-5 w-5 text-muted-foreground" />
-          </div>
-            <CardTitle className="text-base">Documents</CardTitle>
+        <CardTitle className="text-base">Files</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm mb-4">
-              Access and manage all documents related to this project
+        <div 
+          className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
+            isDragging 
+              ? "border-primary bg-primary/5" 
+              : "border-muted-foreground/20 hover:border-primary/50"
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground mb-1">
+            Drag and drop files here or
+          </p>
+          <div>
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
+                Browse Files
+              </Button>
+              <input
+                id="file-upload"
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+            </label>
+          </div>
         </div>
-            
-            <Button asChild className="w-full">
-              <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">
-                <LucideFileText className="h-4 w-4" />
-                View Documents
-              </Link>
-            </Button>
+
+        {fileUploads.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {fileUploads.map(file => (
+              <div key={file.id} className="border rounded-md p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 truncate">
+                    <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">{file.name}</span>
+                  </div>
+                  {canManageFiles && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6" 
+                      onClick={() => handleRemoveFile(file.id)}
+                    >
+                      <LucideTrash className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="w-full">
+                  <Progress value={file.progress} className="h-1" />
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-muted-foreground">
+                    {formatFileSize(file.size)}
+                  </span>
+                  <span className={`text-xs ${file.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {file.status === 'uploading' 
+                      ? `${file.progress}%` 
+                      : file.status === 'complete' 
+                        ? 'Complete' 
+                        : 'Error'}
+                  </span>
+                </div>
+                {file.status === 'error' && file.error && (
+                  <div className="mt-1 text-xs text-destructive">
+                    {file.error}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Add a button to view all files */}
+        <div className="mt-4">
+          <Button variant="outline" asChild className="w-full">
+            <Link href={`/projects/${projectId}/documents`} className="flex items-center justify-center gap-2">
+              <LucideFileText className="h-4 w-4" />
+              View All Files
+            </Link>
+          </Button>
+        </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Add the enhanced deletion progress dialog */}
-      <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
-        // Only allow closing this dialog when deletion is not in progress
-        if (!isDeleting) setIsDeleteInProgress(open);
-      }}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Deleting Project</DialogTitle>
-            <DialogDescription>
-              Please wait while we delete the project and its associated resources.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <LucideLoader className="h-5 w-5 animate-spin text-primary" />
-                <p className="font-medium">{deletionStage}</p>
+    {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
+    <div className="mt-6 flex flex-col md:flex-row gap-4">
+      <Card className="md:w-1/2">
+        <CardHeader className="pb-2">
+          <div className="mb-2">
+            <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
               </div>
-              
-              {/* Step-by-step progress */}
-              <div className="space-y-3">
-                {deleteSteps.map(step => (
-                  <div key={step.id} className="flex items-center gap-3">
-                    {step.status === 'pending' && (
-                      <div className="h-5 w-5 rounded-full border border-muted-foreground/30" />
-                    )}
-                    {step.status === 'inProgress' && (
-                      <LucideLoader className="h-5 w-5 animate-spin text-primary" />
-                    )}
-                    {step.status === 'completed' && (
-                      <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                    )}
-                    {step.status === 'error' && (
-                      <div className="h-5 w-5 rounded-full bg-destructive flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M9 3L3 9M3 3L9 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                    )}
-                    <p className={`text-sm ${
-                      step.status === 'completed' 
-                        ? 'text-muted-foreground line-through' 
-                        : step.status === 'error' 
-                          ? 'text-destructive' 
-                          : step.status === 'inProgress' 
-                            ? 'text-primary' 
-                            : 'text-muted-foreground'
-                    }`}>{step.label}</p>
-                  </div>
-                ))}
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Deleting AI resources from OpenAI can take some time. Please do not close this window.
-              </p>
-            </div>
+          <CardTitle className="text-base">Chat with ATLAS</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm mb-4">
+            Chat with your AI assistant about this project and its documents
           </div>
-          <DialogFooter>
-            <Button 
-              onClick={() => setIsDeleteInProgress(false)}
-              disabled={isDeleting}
-              variant={isDeleting ? "outline" : "default"}
-            >
-              {isDeleting ? "Deleting..." : "Close"}
-            </Button>
-          </DialogFooter>
+          
+          <Button asChild className="w-full">
+            <Link href={`/projects/${project.id}/chat`} className="flex items-center justify-center gap-2">
+              <LucideMessageSquare className="h-4 w-4" />
+              Open Chat
+            </Link>
+          </Button>
+            </CardContent>
+          </Card>
+      
+      <Card className="md:w-1/2">
+        <CardHeader className="pb-2">
+          <div className="mb-2">
+            <LucideFileText className="h-5 w-5 text-muted-foreground" />
+        </div>
+          <CardTitle className="text-base">Documents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm mb-4">
+            Access and manage all documents related to this project
+      </div>
+          
+          <Button asChild className="w-full">
+            <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">
+              <LucideFileText className="h-4 w-4" />
+              View Documents
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Add the enhanced deletion progress dialog */}
+    <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
+      // Only allow closing this dialog when deletion is not in progress
+      if (!isDeleting) setIsDeleteInProgress(open);
+    }}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Deleting Project</DialogTitle>
+          <DialogDescription>
+            Please wait while we delete the project and its associated resources.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+              <p className="font-medium">{deletionStage}</p>
+            </div>
+            
+            {/* Step-by-step progress */}
+            <div className="space-y-3">
+              {deleteSteps.map(step => (
+                <div key={step.id} className="flex items-center gap-3">
+                  {step.status === 'pending' && (
+                    <div className="h-5 w-5 rounded-full border border-muted-foreground/30" />
+                  )}
+                  {step.status === 'inProgress' && (
+                    <LucideLoader className="h-5 w-5 animate-spin text-primary" />
+                  )}
+                  {step.status === 'completed' && (
+                    <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
+                  {step.status === 'error' && (
+                    <div className="h-5 w-5 rounded-full bg-destructive flex items-center justify-center">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 3L3 9M3 3L9 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
+                  <p className={`text-sm ${
+                    step.status === 'completed' 
+                      ? 'text-muted-foreground line-through' 
+                      : step.status === 'error' 
+                        ? 'text-destructive' 
+                        : step.status === 'inProgress' 
+                          ? 'text-primary' 
+                          : 'text-muted-foreground'
+                  }`}>{step.label}</p>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              Deleting AI resources from OpenAI can take some time. Please do not close this window.
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button 
+            onClick={() => setIsDeleteInProgress(false)}
+            disabled={isDeleting}
+            variant={isDeleting ? "outline" : "default"}
+          >
+            {isDeleting ? "Deleting..." : "Close"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Dialogs */}
+    {canEditProject && (
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <EditProjectForm 
+            project={project as Project} 
+            onSuccess={handleProjectUpdated} 
+            onCancel={() => setIsEditDialogOpen(false)} 
+          />
         </DialogContent>
       </Dialog>
+    )}
 
-      {/* Dialogs */}
-      {canEditProject && (
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[625px]">
-            <EditProjectForm 
-              project={project as Project} 
-              onSuccess={handleProjectUpdated} 
-              onCancel={() => setIsEditDialogOpen(false)} 
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the project
-              and all associated data.
-            </AlertDialogDescription>
-            <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-              <p className="font-medium mb-2">The following will be deleted:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Project data and settings</li>
-                <li>Team member associations</li>
-                <li>All chat history and interactions</li>
-                {project.vectorStoreId && (
-                  <li>
-                    Associated vector store{" "}
-                    <span className="text-xs opacity-70">(used for file search)</span>
-                  </li>
-                )}
-                {project.assistantId && (
-                  <li>
-                    Associated assistant{" "}
-                    <span className="text-xs opacity-70">(AI chat capabilities)</span>
-                  </li>
-                )}
-              </ul>
-            </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteProject}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      
-      {hasRole("ADMIN") && (
-        <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <LucideSettings className="h-4 w-4 mr-2" />
-              Debug Info
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Project Debug Information</DialogTitle>
-              <DialogDescription>
-                Technical details for this project's AI resources
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {isLoadingDebugInfo ? (
-                <div className="flex items-center justify-center py-4">
-                  <LucideLoader className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <h3 className="text-sm font-medium mb-1">Database IDs</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-xs text-muted-foreground">Vector Store ID:</span>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {project.vectorStoreId || "Not available"}
-                        </code>
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">Assistant ID:</span>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {project.assistantId || "Not available"}
-                        </code>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium mb-1">OpenAI IDs</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-xs text-muted-foreground">Vector Store OpenAI ID:</span>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {debugInfo.vectorStore?.openaiId || "Not available"}
-                        </code>
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">Assistant OpenAI ID:</span>
-                        <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                          {debugInfo.assistant?.openaiId || "Not available"}
-                        </code>
-                      </div>
-                    </div>
-                  </div>
-                </>
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the project
+            and all associated data.
+          </AlertDialogDescription>
+          <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+            <p className="font-medium mb-2">The following will be deleted:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Project data and settings</li>
+              <li>Team member associations</li>
+              <li>All chat history and interactions</li>
+              {project.vectorStoreId && (
+                <li>
+                  Associated vector store{" "}
+                  <span className="text-xs opacity-70">(used for file search)</span>
+                </li>
               )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
-  );
+              {project.assistantId && (
+                <li>
+                  Associated assistant{" "}
+                  <span className="text-xs opacity-70">(AI chat capabilities)</span>
+                </li>
+              )}
+            </ul>
+          </div>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={handleDeleteProject}
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    
+    {hasRole("ADMIN") && (
+      <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <LucideSettings className="h-4 w-4 mr-2" />
+            Debug Info
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Project Debug Information</DialogTitle>
+            <DialogDescription>
+              Technical details for this project's AI resources
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {isLoadingDebugInfo ? (
+              <div className="flex items-center justify-center py-4">
+                <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Database IDs</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Vector Store ID:</span>
+                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                        {project.vectorStoreId || "Not available"}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Assistant ID:</span>
+                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                        {project.assistantId || "Not available"}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium mb-1">OpenAI IDs</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Vector Store OpenAI ID:</span>
+                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                        {debugInfo.vectorStore?.openaiId || "Not available"}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Assistant OpenAI ID:</span>
+                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
+                        {debugInfo.assistant?.openaiId || "Not available"}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+  </div>
+);
 }
 
 interface EditProjectFormProps {
