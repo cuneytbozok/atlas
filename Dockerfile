@@ -32,6 +32,14 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Copy necessary files for Prisma migrations
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./package.json
+
+# Install production dependencies including Prisma
+RUN npm ci --only=production
+
+# Copy the public directory
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
@@ -42,6 +50,9 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy entrypoint script
+COPY --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
+
 USER nextjs
 
 EXPOSE 3000
@@ -49,5 +60,8 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Use the standalone output created by Next.js
+# Use our custom entrypoint script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# The command to run (passed to entrypoint)
 CMD ["node", "server.js"] 

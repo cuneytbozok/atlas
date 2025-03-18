@@ -31,7 +31,27 @@ This guide explains how to deploy the ATLAS application using Docker and Docker 
    docker-compose up -d
    ```
 
-5. Access ATLAS at http://localhost:3000
+   The system will automatically:
+   - Start the PostgreSQL database
+   - Run all database migrations
+   - Seed the database with initial data
+   - Start the ATLAS application
+
+5. Access ATLAS at http://localhost:3000 and log in with the default admin credentials:
+   - Email: admin@atlas-ai.com
+   - Password: password
+
+   **Important**: Change these credentials immediately after first login.
+
+## Automatic Database Initialization
+
+The ATLAS Docker setup includes automatic database initialization:
+
+1. **Database Migrations**: All schema changes are automatically applied when the container starts
+2. **Seed Data**: Initial data (including admin users, roles, and permissions) is seeded
+3. **Health Checks**: The system ensures the database is ready before starting the application
+
+No manual database setup is required!
 
 ## Environment Variables
 
@@ -113,11 +133,16 @@ If the application can't connect to the database, check:
 
 2. The DATABASE_URL environment variable is set correctly in your `.env` file.
 
+3. Check the container logs for migration errors:
+   ```bash
+   docker-compose logs atlas
+   ```
+
 ### OpenAI API Issues
 
 If AI features aren't working:
 
-1. Verify your OPENAI_API_KEY is set correctly
+1. Verify your OPENAI_API_KEY is set correctly in the ATLAS admin settings
 2. Check if your OpenAI API key has the necessary permissions
 3. Check the application logs:
    ```bash
@@ -129,6 +154,7 @@ If AI features aren't working:
 1. **Change default secrets**: Always change the default JWT and NextAuth secrets in production
 2. **API Key security**: Your OpenAI API key should be kept confidential
 3. **Database passwords**: Change the default PostgreSQL password in production
+4. **Default admin password**: Change the default admin password immediately after first login
 
 ## Accessing from Other Devices
 

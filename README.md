@@ -27,7 +27,14 @@ ATLAS can be easily deployed using Docker:
 ```bash
 # Build and start the containers
 docker-compose up -d
+```
 
+The system will automatically:
+- Start the PostgreSQL database
+- Run database migrations & seed data
+- Start the ATLAS application
+
+```bash
 # View logs
 docker-compose logs -f
 ```
