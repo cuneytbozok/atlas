@@ -128,10 +128,31 @@ export class ChatService {
         throw new Error('You do not have access to this project');
       }
 
-      // Get threads for the project
+      // Get threads for the project that were created by this user
+      // We need to first get the activity logs for thread creation
+      const threadCreationLogs = await prisma.activityLog.findMany({
+        where: {
+          userId: userId,
+          action: 'CREATE_THREAD',
+          entityType: 'THREAD',
+        },
+        select: {
+          entityId: true
+        }
+      });
+
+      // Extract thread IDs created by this user
+      const threadIdsCreatedByUser = threadCreationLogs.map(log => log.entityId);
+
+      console.log(`Found ${threadIdsCreatedByUser.length} threads created by user ${userId} for project ${projectId}`);
+
+      // Get threads for the project that were created by this user
       const threads = await prisma.thread.findMany({
         where: {
-          projectId: projectId
+          projectId: projectId,
+          id: {
+            in: threadIdsCreatedByUser
+          }
         },
         orderBy: {
           updatedAt: 'desc'
