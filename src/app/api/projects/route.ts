@@ -57,37 +57,87 @@ export const GET = withErrorHandling(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
 
+  // First, find the user
   const user = await prismaClient.user.findUnique({
     where: { email: session.user.email },
-    include: {
-      projects: {
-        include: {
-          members: {
-            include: {
-              user: true,
-              role: true,
-            },
-          },
-        },
-      },
-    },
+    select: { id: true }
   });
 
   if (!user) {
     return NextResponse.json({ message: "User not found" }, { status: 404 });
   }
 
-  let projects = user.projects;
+  // Use a more comprehensive query to get all projects the user has access to
+  let whereCondition: any = {
+    OR: [
+      // Projects created by the user
+      { createdById: user.id },
+      // Projects where user is a member
+      {
+        members: {
+          some: {
+            userId: user.id
+          }
+        }
+      }
+    ]
+  };
 
+  // Add status filter if provided
   if (status && status !== "all") {
     const validStatuses = ["active", "completed", "archived"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ message: "Invalid status value" }, { status: 400 });
     }
-    projects = projects.filter((project: Project) => project.status === status);
+    
+    // Apply status filter
+    whereCondition = {
+      AND: [
+        whereCondition,
+        { status }
+      ]
+    };
   }
 
-  return NextResponse.json(projects);
+  // Fetch projects with the constructed query
+  const projects = await prismaClient.project.findMany({
+    where: whereCondition,
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            }
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+            }
+          }
+        }
+      },
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        }
+      }
+    }
+  });
+
+  // Add an isOwner flag to each project for the frontend to use
+  const projectsWithOwnerFlag = projects.map(project => ({
+    ...project,
+    isOwner: project.createdById === user.id
+  }));
+
+  return NextResponse.json(projectsWithOwnerFlag);
 });
 
 // POST - Create a new project

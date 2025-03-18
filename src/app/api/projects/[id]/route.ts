@@ -440,7 +440,13 @@ export async function DELETE(
     // Find the user
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true }
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
     });
 
     if (!user) {
@@ -450,15 +456,25 @@ export async function DELETE(
       );
     }
 
-    // Check if user is the creator of the project
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { 
-        createdById: true,
-        vectorStoreId: true,
-        assistantId: true,
-        name: true
+    // Check if the user is an admin
+    const isAdmin = user.userRoles.some(ur => ur.role.name === "ADMIN");
+
+    // Check if the user is a project manager for this project
+    const projectMember = await prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        userId: user.id,
+        role: {
+          name: "PROJECT_MANAGER"
+        }
       }
+    });
+
+    const isProjectManager = !!projectMember;
+
+    // Get the project
+    const project = await prisma.project.findUnique({
+      where: { id: projectId }
     });
 
     if (!project) {
@@ -468,9 +484,13 @@ export async function DELETE(
       );
     }
 
-    if (project.createdById !== user.id) {
+    // Check if user is the creator
+    const isCreator = project.createdById === user.id;
+
+    // Check if the user has permission to delete this project
+    if (!isCreator && !isAdmin && !isProjectManager) {
       return NextResponse.json(
-        { message: "Only the project creator can delete the project" },
+        { message: "You don't have permission to delete this project" },
         { status: 403 }
       );
     }

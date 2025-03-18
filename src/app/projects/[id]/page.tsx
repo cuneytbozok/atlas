@@ -174,6 +174,7 @@ export default function ProjectPage() {
   }>>([]);
   const [canManageFiles, setCanManageFiles] = useState(false);
   const [canEditProject, setCanEditProject] = useState(false);
+  const [canDeleteProject, setCanDeleteProject] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{
     assistant: { id: string, openaiId: string | null } | null;
     vectorStore: { id: string, openaiId: string | null } | null;
@@ -211,8 +212,12 @@ export default function ProjectPage() {
         // Check if user is a project manager
         const isProjectManager = project.projectManager?.user.id === user.id;
         
+        // Check if user is the project creator
+        const isCreator = project.createdById === user.id;
+        
         setCanManageFiles(isAdmin || isProjectManager);
         setCanEditProject(isAdmin || isProjectManager);
+        setCanDeleteProject(isAdmin || isProjectManager || isCreator);
       };
       
       checkPermissions();
@@ -582,13 +587,15 @@ export default function ProjectPage() {
                 </Button>
               )}
 
-              <Button 
-                variant="destructive" 
-                onClick={() => setIsDeleteDialogOpen(true)}
-              >
-                <LucideTrash className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
+              {canDeleteProject && (
+                <Button 
+                  variant="destructive" 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  <LucideTrash className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
 
