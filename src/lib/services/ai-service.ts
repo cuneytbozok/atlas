@@ -758,12 +758,14 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
    * @param assistantId - ID of the assistant in our database
    * @param projectName - Updated name of the project
    * @param projectDescription - Updated description of the project
+   * @param customName - Optional custom name for the assistant
    * @returns The updated assistant from our database
    */
   static async updateAssistant(
     assistantId: string,
     projectName: string,
-    projectDescription: string | null
+    projectDescription: string | null,
+    customName?: string
   ) {
     try {
       // First get the assistant from our database to get the OpenAI ID
@@ -778,6 +780,9 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       const openaiAssistantId = assistant.openaiAssistantId;
       console.log(`Updating assistant ${assistantId} (OpenAI ID: ${openaiAssistantId})`);
       console.log(`New project details: Name = "${projectName}", Description = "${projectDescription}"`);
+      if (customName) {
+        console.log(`Custom assistant name: "${customName}"`);
+      }
 
       // Get the OpenAI client
       const client = await this.getClient();
@@ -801,9 +806,12 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
         existingProjectId = config.projectId || existingProjectId;
       }
 
+      // Use custom name if provided, otherwise construct from project name
+      const assistantName = customName || `${projectName} Assistant`;
+
       // Prepare update parameters
       const updateParams = {
-        name: `${projectName} Assistant`,
+        name: assistantName,
         description: `Assistant for project: ${projectName}`,
         instructions: instructions,
       };
@@ -829,7 +837,7 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       const dbAssistant = await prisma.assistant.update({
         where: { id: assistantId },
         data: {
-          name: `${projectName} Assistant`,
+          name: assistantName,
           configuration: {
             instructions: instructions,
             tools: existingTools,

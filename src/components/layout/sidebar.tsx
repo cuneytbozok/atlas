@@ -12,7 +12,8 @@ import {
   LucideChevronLeft, 
   LucideChevronRight,
   LucideUser,
-  LucideShield
+  LucideShield,
+  LucideBrain
 } from "lucide-react";
 import { 
   Tooltip,
@@ -72,6 +73,12 @@ export function Sidebar({ className }: SidebarProps) {
                   href="/admin/users"
                   icon={<LucideUsers className="h-5 w-5" />}
                   label="User Management"
+                  collapsed={collapsed}
+                />
+                <NavItem
+                  href="/admin/assistants"
+                  icon={<LucideBrain className="h-5 w-5" />}
+                  label="Assistants"
                   collapsed={collapsed}
                 />
                 <NavItem
