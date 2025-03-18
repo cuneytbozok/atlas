@@ -406,62 +406,55 @@ export default function ProjectPage() {
     if (!project) return;
     
     setIsDeleting(true);
+    setIsDeleteInProgress(true);
+    setDeletionStage("Preparing to delete project...");
     
     try {
-      // Start deletion process
-      updateDeletionStep('assistant', 'inProgress');
+      // Set up the deletion steps
+      setDeleteSteps([
+        { id: 'project', label: 'Deleting project and associated resources', status: 'inProgress' },
+      ]);
       
-      // Delete assistant
-      const assistantResp = await fetch(`/api/admin/assistants/${project.assistantId}`, {
-        method: 'DELETE'
-      });
+      setDeletionStage("Deleting project and associated resources...");
       
-      if (!assistantResp.ok) {
-        throw new Error('Failed to delete assistant');
-      }
-      
-      updateDeletionStep('assistant', 'completed');
-      updateDeletionStep('vectorStore', 'inProgress');
-      
-      // Delete vector store
-      const vectorStoreResp = await fetch(`/api/admin/vector-stores/${project.vectorStoreId}`, {
-        method: 'DELETE'
-      });
-      
-      if (!vectorStoreResp.ok) {
-        throw new Error('Failed to delete vector store');
-      }
-      
-      updateDeletionStep('vectorStore', 'completed');
-      updateDeletionStep('project', 'inProgress');
-      
-      // Delete project
+      // Delete project (the API will handle assistant and vector store deletion)
       const projectResp = await fetch(`/api/projects/${project.id}`, {
         method: 'DELETE'
       });
       
       if (!projectResp.ok) {
-        throw new Error('Failed to delete project');
+        const errorData = await projectResp.json();
+        throw new Error(errorData.message || 'Failed to delete project');
       }
       
-      updateDeletionStep('project', 'completed');
+      // Mark all steps as completed
+      setDeleteSteps(steps => 
+        steps.map(step => ({ ...step, status: 'completed' }))
+      );
+      
+      setDeletionStage("Project deleted successfully!");
       
       // Show success message
       toast.success("Project deleted successfully");
       
-      // Navigate back to projects list
-      router.push('/projects');
+      // Short delay before redirecting to allow user to see the success state
+      setTimeout(() => {
+        // Navigate back to projects list
+        router.push('/projects');
+      }, 1500);
       
     } catch (error) {
       console.error('Error deleting project:', error);
-      toast.error("Failed to delete project");
+      toast.error("Failed to delete project", {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
       
       // Mark current step as error
-      const currentStep = deleteSteps.find(step => step.status === 'inProgress');
-      if (currentStep) {
-        updateDeletionStep(currentStep.id, 'error');
-      }
+      setDeleteSteps(steps => 
+        steps.map(step => ({ ...step, status: 'error' }))
+      );
       
+      setDeletionStage("Error deleting project: " + (error instanceof Error ? error.message : 'Unknown error'));
       setIsDeleting(false);
     }
   };
@@ -1205,6 +1198,14 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
           });
           break;
         }
+        
+        if (!formData.description.trim()) {
+          setError("Project description is required");
+          toast.error("Validation Error", {
+            description: "Project description is required"
+          });
+          break;
+        }
 
         // Create a copy of the form data to modify before sending
         const dataToSend = { ...formData };
@@ -1289,13 +1290,14 @@ function EditProjectForm({ project, onSuccess, onCancel }: EditProjectFormProps)
           />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
           <Textarea
             id="description"
             name="description"
             value={formData.description}
             onChange={handleChange}
             rows={3}
+            required
           />
         </div>
         <div className="grid gap-2">

@@ -14,7 +14,7 @@ const prismaClient = new PrismaClient();
 // Schema for project creation
 const createProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
-  description: z.string().optional(),
+  description: z.string().min(1, "Project description is required"),
   status: z.enum(["active", "completed", "archived"]).optional().default("active"),
   members: z.array(
     z.object({
@@ -22,7 +22,10 @@ const createProjectSchema = z.object({
       roleId: z.string().optional(),
     })
   ).optional(),
-  projectManagerId: z.string().optional(),
+  projectManagerId: z.string({
+    required_error: "Project Manager is required"
+  }),
+  creatorShouldBeTeamMember: z.boolean().optional().default(false)
 });
 
 interface Project {
@@ -90,7 +93,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 // POST - Create a new project
 export const POST = withErrorHandling(async (request: Request) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !session?.user?.id) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -99,15 +102,48 @@ export const POST = withErrorHandling(async (request: Request) => {
   try {
     // Validate request body
     const validatedData = createProjectSchema.parse(body);
-    const { name, description, status, members, projectManagerId } = validatedData;
+    const { name, description, status, members, projectManagerId, creatorShouldBeTeamMember } = validatedData;
 
     const user = await prismaClient.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true }
+      select: { 
+        id: true,
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
+    }
+
+    // Check if user has CREATE_PROJECT permission
+    const hasCreateProjectPermission = user.userRoles.some(userRole => 
+      userRole.role.rolePermissions.some(rp => 
+        rp.permission.name === 'CREATE_PROJECT'
+      )
+    );
+
+    if (!hasCreateProjectPermission) {
+      logger.error(`User ${user.id} attempted to create a project without permission`, {
+        userId: user.id,
+        email: session.user.email
+      });
+      return NextResponse.json(
+        { message: "You don't have permission to create projects" },
+        { status: 403 }
+      );
     }
 
     // Get the admin role for the creator
@@ -158,13 +194,13 @@ export const POST = withErrorHandling(async (request: Request) => {
           description,
           status: status || "active",
           createdById: user.id,
-          // Add the creator as an admin member automatically
-          members: {
+          // Only add the creator as a member if requested
+          members: creatorShouldBeTeamMember ? {
             create: {
               userId: user.id,
               roleId: adminRole.id,
             },
-          },
+          } : undefined,
         },
         include: {
           members: {
@@ -312,28 +348,34 @@ export const POST = withErrorHandling(async (request: Request) => {
     // Try to set up AI resources for the project asynchronously
     // We don't want to block the project creation if AI setup fails
     try {
-      // Set up AI resources in the background
-      AIService.setupProjectAI(
-        project.id,
-        project.name,
-        project.description
-      ).then(({ vectorStore, assistant }) => {
-        console.log(`AI resources set up for project ${project.id}`, {
-          projectId: project.id,
-          vectorStoreId: vectorStore.id,
-          assistantId: assistant.id
+      if (project) {
+        // Set up AI resources in the background
+        AIService.setupProjectAI(
+          project.id,
+          project.name,
+          project.description
+        ).then(({ vectorStore, assistant }) => {
+          console.log(`AI resources set up for project ${project.id}`, {
+            projectId: project.id,
+            vectorStoreId: vectorStore.id,
+            assistantId: assistant.id
+          });
+        }).catch(error => {
+          logger.error(error, {
+            action: 'setup_project_ai',
+            projectId: project.id
+          });
         });
-      }).catch(error => {
-        logger.error(error, {
-          action: 'setup_project_ai',
-          projectId: project.id
+      } else {
+        logger.error(new Error("Project was null after transaction"), {
+          action: 'setup_project_ai_attempt'
         });
-      });
+      }
     } catch (error) {
       // Log the error but don't fail the project creation
       logger.error(error, {
         action: 'setup_project_ai_attempt',
-        projectId: project.id
+        projectId: project?.id || 'unknown'
       });
     }
 

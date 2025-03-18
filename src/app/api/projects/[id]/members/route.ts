@@ -131,7 +131,7 @@ export async function POST(
         projectId,
         userId: user.id,
         role: {
-          name: "admin"
+          name: "ADMIN"
         }
       }
     });
@@ -168,7 +168,7 @@ export async function POST(
     let memberRoleId = roleId;
     if (!memberRoleId) {
       const memberRole = await prisma.role.findFirst({
-        where: { name: "member" },
+        where: { name: "USER" },
         select: { id: true }
       });
 
@@ -286,13 +286,13 @@ export async function DELETE(
       );
     }
 
-    // Check if user is admin or creator of the project
+    // Check if user is admin, creator, or the member being removed
     const userMembership = await prisma.projectMember.findFirst({
       where: {
         projectId,
         userId: user.id,
         role: {
-          name: "admin"
+          name: "ADMIN"
         }
       }
     });

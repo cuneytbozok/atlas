@@ -28,6 +28,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Project {
   id: string;
@@ -217,6 +218,7 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
   });
   const [members, setMembers] = useState<{ email: string }[]>([]);
   const [projectManager, setProjectManager] = useState<{ id: string; email: string; name: string | null } | null>(null);
+  const [includeCreatorAsTeamMember, setIncludeCreatorAsTeamMember] = useState(false);
   
   // Replace single search query with separate states for each field
   const [managerSearchQuery, setManagerSearchQuery] = useState("");
@@ -292,6 +294,14 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
         throw new Error("Project name is required");
       }
 
+      if (!formData.description.trim()) {
+        throw new Error("Project description is required");
+      }
+
+      if (!projectManager) {
+        throw new Error("Project manager is required");
+      }
+
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
@@ -301,7 +311,8 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
           name: formData.name,
           description: formData.description,
           members: members.length > 0 ? members : undefined,
-          projectManagerId: projectManager?.id,
+          projectManagerId: projectManager.id,
+          creatorShouldBeTeamMember: includeCreatorAsTeamMember
         }),
       });
 
@@ -350,7 +361,7 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
           />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
           <Textarea 
             id="description" 
             name="description"
@@ -359,12 +370,27 @@ function CreateProjectForm({ onSuccess, onCancel }: CreateProjectFormProps) {
             rows={3}
             value={formData.description}
             onChange={handleChange}
+            required
           />
+        </div>
+        
+        {/* Creator as Team Member Checkbox */}
+        <div className="flex items-center space-x-2">
+          <Checkbox 
+            id="creatorAsMember" 
+            checked={includeCreatorAsTeamMember}
+            onCheckedChange={(checked) => 
+              setIncludeCreatorAsTeamMember(checked === true)
+            }
+          />
+          <Label htmlFor="creatorAsMember">
+            Include me as a team member
+          </Label>
         </div>
         
         {/* Project Manager Selection */}
         <div className="grid gap-2">
-          <Label>Project Manager</Label>
+          <Label>Project Manager <span className="text-destructive">*</span></Label>
           <div className="relative">
             <Input 
               placeholder="Search for a project manager" 

@@ -27,20 +27,46 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get the USER role
+    const userRole = await prisma.role.findFirst({
+      where: { name: "USER" },
+    });
+
+    if (!userRole) {
+      return NextResponse.json(
+        { message: "Failed to assign role to user - USER role not found" },
+        { status: 500 }
+      );
+    }
+
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
+    // Create user with the USER role assigned
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
+        userRoles: {
+          create: {
+            roleId: userRole.id,
+          }
+        }
       },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
     });
 
     // Return user without password
     const { password: _, ...userWithoutPassword } = user;
+    
+    console.log(`Created new user ${user.id} (${user.email}) with role: ${userRole.name}`);
     
     return NextResponse.json(
       { 

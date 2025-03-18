@@ -141,6 +141,21 @@ export async function PATCH(
         projectManagerId
       } = body;
 
+      // Validate that name and description are not empty if provided
+      if (name !== undefined && (!name || name.trim() === "")) {
+        return NextResponse.json(
+          { message: "Project name cannot be empty" },
+          { status: 400 }
+        );
+      }
+
+      if (description !== undefined && (!description || description.trim() === "")) {
+        return NextResponse.json(
+          { message: "Project description cannot be empty" },
+          { status: 400 }
+        );
+      }
+
       // Log the update request
       console.log(`Updating project ${projectId} with:`, {
         name,
