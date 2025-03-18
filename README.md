@@ -1,6 +1,10 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ATLAS - Advanced Team Learning Assistant System
+
+This is a Next.js application that provides an AI-powered workspace for enhanced team learning and productivity.
 
 ## Getting Started
+
+### Local Development
 
 First, run the development server:
 
@@ -16,9 +20,27 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ATLAS can be easily deployed using Docker:
+
+```bash
+# Build and start the containers
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+For detailed Docker deployment instructions, see [DOCKER.md](./DOCKER.md).
+
+## Features
+
+- AI-powered document analysis and insights
+- Collaborative workspaces for teams
+- Intelligent knowledge management
+- Context-aware AI assistance
+- Seamless project organization
 
 ## Learn More
 
@@ -27,10 +49,14 @@ To learn more about Next.js, take a look at the following resources:
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database
 
-## Deploy on Vercel
+ATLAS uses PostgreSQL for data storage. See [DATABASE.md](./DATABASE.md) for details on the schema.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+[MIT](LICENSE)
