@@ -83,4 +83,34 @@ export async function hasThreadAccess(
 
   // Check project access
   return hasProjectAccess(thread.project.id, userId);
+}
+
+/**
+ * Checks if a user is a project manager or admin
+ * @param projectId Project ID to check
+ * @param userId User ID to check
+ * @returns Boolean indicating if the user is a project manager or admin
+ */
+export async function isProjectManagerOrAdmin(
+  projectId: string,
+  userId: string
+): Promise<boolean> {
+  // Check if user is an admin
+  const isAdmin = await isUserAdmin(userId);
+  if (isAdmin) {
+    return true;
+  }
+  
+  // Check if user is a project manager for this project
+  const isProjectManager = await prisma.projectMember.findFirst({
+    where: {
+      projectId,
+      userId,
+      role: {
+        name: 'PROJECT_MANAGER'
+      }
+    }
+  });
+  
+  return !!isProjectManager;
 } 

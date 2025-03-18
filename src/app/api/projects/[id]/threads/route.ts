@@ -25,7 +25,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const projectId = params.id;
+    // Await params to access its properties
+    const { id } = await params;
+    const projectId = id;
     const userId = session.user.id;
 
     // Check if user has access to the project
@@ -62,7 +64,9 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const projectId = params.id;
+    // Await params to access its properties
+    const { id } = await params;
+    const projectId = id;
     const userId = session.user.id;
 
     // Check if user has access to the project

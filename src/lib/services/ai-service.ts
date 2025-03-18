@@ -523,7 +523,7 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${bearerToken}`,
-          'OpenAI-Beta': 'vectors=v2'
+          'OpenAI-Beta': 'assistants=v1'
         },
         body: JSON.stringify({
           file_id: fileId
@@ -531,9 +531,9 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(e => ({ message: 'Failed to parse error response' }));
         console.error(`Error adding file to vector store: ${JSON.stringify(errorData)}`);
-        throw new Error(`Failed to add file to vector store: ${response.statusText}`);
+        throw new Error(`Failed to add file to vector store: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
       }
       
       console.log(`File added to vector store successfully`);
@@ -541,6 +541,172 @@ ${projectDescription ? `\nProject description: ${projectDescription}` : ''} \
       return true;
     } catch (error) {
       console.error("Error adding file to vector store:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Adds multiple files to a vector store in a batch
+   * @param fileIds - Array of OpenAI file IDs
+   * @param vectorStoreId - The OpenAI vector store ID
+   * @returns The batch operation response
+   */
+  static async addFileBatchToVectorStore(
+    fileIds: string[],
+    vectorStoreId: string
+  ): Promise<any> {
+    try {
+      const client = await this.getClient();
+      
+      console.log(`Adding batch of ${fileIds.length} files to vector store ${vectorStoreId}`);
+      
+      // Use batch endpoint for multiple files
+      const bearerToken = client.apiKey;
+      const response = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/file_batches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${bearerToken}`,
+          'OpenAI-Beta': 'assistants=v1'
+        },
+        body: JSON.stringify({
+          file_ids: fileIds
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => ({ message: 'Failed to parse error response' }));
+        console.error(`Error adding file batch to vector store: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to add file batch to vector store: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+      }
+      
+      const batchData = await response.json().catch(e => {
+        console.error('Failed to parse batch response as JSON:', e);
+        throw new Error('Failed to parse response from vector store batch API');
+      });
+      
+      if (!batchData || !batchData.id) {
+        console.error('Invalid batch response format from vector store API:', batchData);
+        return { status: 'error', message: 'Invalid response from OpenAI' };
+      }
+      
+      console.log(`File batch added to vector store, batch ID: ${batchData.id}, status: ${batchData.status}`);
+      
+      return batchData;
+    } catch (error) {
+      console.error("Error adding file batch to vector store:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets files from a vector store
+   * @param vectorStoreId - The OpenAI vector store ID
+   * @returns The files in the vector store
+   */
+  static async getVectorStoreFiles(vectorStoreId: string): Promise<any[]> {
+    try {
+      const client = await this.getClient();
+      
+      console.log(`Fetching files from vector store ${vectorStoreId}`);
+      
+      if (!vectorStoreId) {
+        console.error("Error: Empty vector store ID provided");
+        throw new Error("Vector store ID is required");
+      }
+      
+      // Try to get the API key to verify it's available
+      const apiKey = client.apiKey;
+      if (!apiKey) {
+        console.error("Error: No API key available");
+        throw new Error("OpenAI API key not available");
+      }
+      
+      // Check what API version is being used
+      console.log(`API endpoint URL: https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`);
+      
+      // Use fetch directly with beta headers since the SDK might not support this yet
+      const response = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v1'
+        }
+      });
+      
+      console.log(`Vector store files API response status: ${response.status} ${response.statusText}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => {
+          console.error("Failed to parse error response:", e);
+          return { message: 'Failed to parse error response' };
+        });
+        
+        console.error(`Error fetching files from vector store: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to fetch files from vector store: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+      }
+      
+      // Try to parse the response with logging
+      const responseText = await response.text();
+      console.log(`Raw API response: ${responseText.substring(0, 200)}...`); // Show first 200 chars to avoid huge logs
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error('Failed to parse response from vector store API');
+      }
+      
+      if (!data || !data.data) {
+        console.error('Invalid response format from vector store API:', data);
+        throw new Error('Invalid response format from vector store API');
+      }
+      
+      console.log(`Files fetched from vector store successfully: ${data.data.length} files`);
+      
+      return data.data || [];
+    } catch (error) {
+      console.error("Error fetching files from vector store:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Removes a file from a vector store
+   * @param fileId - The OpenAI file ID
+   * @param vectorStoreId - The OpenAI vector store ID
+   * @returns True if successful
+   */
+  static async removeFileFromVectorStore(fileId: string, vectorStoreId: string): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      
+      console.log(`Removing file ${fileId} from vector store ${vectorStoreId}`);
+      
+      // Use fetch directly with beta headers since the SDK might not support this yet
+      const bearerToken = client.apiKey;
+      const response = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v1'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => ({ message: 'Failed to parse error response' }));
+        console.error(`Error removing file from vector store: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to remove file from vector store: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+      }
+      
+      console.log(`File removed from vector store successfully`);
+      
+      return true;
+    } catch (error) {
+      console.error("Error removing file from vector store:", error);
       throw error;
     }
   }

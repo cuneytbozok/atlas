@@ -140,7 +140,7 @@ const getCleanupStatus = (cleanup: { assistantDeleted: boolean; vectorStoreDelet
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const projectId = params?.id as string;
   const { project, isLoading, error, refreshProject } = useProject();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -158,6 +158,7 @@ export default function ProjectPage() {
     label: string;
     status: 'pending' | 'inProgress' | 'completed' | 'error';
   }>>([]);
+  const [canManageFiles, setCanManageFiles] = useState(false);
 
   // Add effect to scroll to ATLAS AI section when hash is present
   useEffect(() => {
@@ -179,6 +180,28 @@ export default function ProjectPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (project) {
+      // Check if user is admin or project manager
+      const checkFilePermissions = async () => {
+        // Admin can always manage files
+        const isAdmin = hasRole('ADMIN');
+        
+        if (isAdmin) {
+          setCanManageFiles(true);
+          return;
+        }
+        
+        // Check if user is a project manager
+        const isProjectManager = project.projectManager?.user.id === user?.id;
+        
+        setCanManageFiles(isAdmin || isProjectManager);
+      };
+      
+      checkFilePermissions();
+    }
+  }, [project, hasRole, user]);
 
   // File upload handlers
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -228,42 +251,102 @@ export default function ProjectPage() {
 
     setFileUploads(prev => [...prev, ...uploads]);
 
-    // Simulate upload progress for each file
+    // Upload each file
     uploads.forEach(fileUpload => {
-      simulateFileUpload(fileUpload.id, newFiles.find(f => f.name === fileUpload.name)!);
+      uploadFileToProject(fileUpload.id, newFiles.find(f => f.name === fileUpload.name)!);
     });
   };
 
-  const simulateFileUpload = async (fileId: string, file: File) => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.floor(Math.random() * 10) + 5;
+  const uploadFileToProject = async (fileId: string, file: File) => {
+    try {
+      // Set initial progress
+      setFileUploads(prev => 
+        prev.map(item => 
+          item.id === fileId 
+            ? { ...item, progress: 10 } 
+            : item
+        )
+      );
       
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        
-        setFileUploads(prev => 
-          prev.map(item => 
-            item.id === fileId 
-              ? { ...item, progress: 100, status: 'complete' } 
-              : item
-          )
-        );
-        
-        toast.success("File uploaded", {
-          description: "File has been uploaded successfully"
-        });
-      } else {
-        setFileUploads(prev => 
-          prev.map(item => 
-            item.id === fileId 
-              ? { ...item, progress } 
-              : item
-          )
-        );
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Set mid progress
+      setFileUploads(prev => 
+        prev.map(item => 
+          item.id === fileId 
+            ? { ...item, progress: 40 } 
+            : item
+        )
+      );
+      
+      // Upload to API
+      const response = await fetch(`/api/projects/${projectId}/files/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      // Set almost complete progress
+      setFileUploads(prev => 
+        prev.map(item => 
+          item.id === fileId 
+            ? { ...item, progress: 90 } 
+            : item
+        )
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
       }
-    }, 300);
+      
+      // Process response
+      const data = await response.json();
+      
+      // Complete the upload
+      setFileUploads(prev => 
+        prev.map(item => 
+          item.id === fileId 
+            ? { ...item, progress: 100, status: 'complete' } 
+            : item
+        )
+      );
+      
+      // Show success message
+      toast.success("File uploaded", {
+        description: `${file.name} has been uploaded successfully`
+      });
+      
+      // Refresh project data to include the new file
+      refreshProject();
+      
+      // Remove successfully uploaded file from display after a delay
+      setTimeout(() => {
+        setFileUploads(prev => prev.filter(item => item.id !== fileId));
+      }, 3000);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      
+      // Update file upload status to error
+      setFileUploads(prev => 
+        prev.map(item => 
+          item.id === fileId 
+            ? { 
+                ...item, 
+                progress: 100, 
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Upload failed'
+              } 
+            : item
+        )
+      );
+      
+      // Show error toast
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : 'Failed to upload file'
+      });
+    }
   };
 
   const handleRemoveFile = (fileId: string) => {
@@ -790,7 +873,7 @@ export default function ProjectPage() {
             </div>
 
             {fileUploads.length > 0 && (
-              <div className="space-y-2 mt-3 max-h-[200px] overflow-y-auto">
+              <div className="mt-3 space-y-2">
                 {fileUploads.map(file => (
                   <div key={file.id} className="border rounded-md p-2">
                     <div className="flex items-center justify-between mb-1">
@@ -798,14 +881,16 @@ export default function ProjectPage() {
                         <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <span className="text-sm truncate">{file.name}</span>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6" 
-                        onClick={() => handleRemoveFile(file.id)}
-                      >
-                        <LucideTrash className="h-4 w-4" />
-                      </Button>
+                      {canManageFiles && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => handleRemoveFile(file.id)}
+                        >
+                          <LucideTrash className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                     <div className="w-full">
                       <Progress value={file.progress} className="h-1" />
@@ -814,7 +899,7 @@ export default function ProjectPage() {
                       <span className="text-xs text-muted-foreground">
                         {formatFileSize(file.size)}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className={`text-xs ${file.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {file.status === 'uploading' 
                           ? `${file.progress}%` 
                           : file.status === 'complete' 
@@ -822,10 +907,25 @@ export default function ProjectPage() {
                             : 'Error'}
                       </span>
                     </div>
+                    {file.status === 'error' && file.error && (
+                      <div className="mt-1 text-xs text-destructive">
+                        {file.error}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+            
+            {/* Add a button to view all files */}
+            <div className="mt-4">
+              <Button variant="outline" asChild className="w-full">
+                <Link href={`/projects/${projectId}/documents`} className="flex items-center justify-center gap-2">
+                  <LucideFileText className="h-4 w-4" />
+                  View All Files
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
