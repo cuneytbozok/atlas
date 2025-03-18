@@ -2,6 +2,8 @@
 
 This is a Next.js application that provides an AI-powered workspace for enhanced team learning and productivity.
 
+![ATLAS Banner](docs/images/atlas-banner.png)
+
 ## Getting Started
 
 ### Local Development
@@ -36,10 +38,40 @@ For detailed Docker deployment instructions, see [DOCKER.md](DOCKER.md).
 ## Features
 
 - AI-powered document analysis and insights
-- Collaborative workspaces for teams
-- Intelligent knowledge management
 - Context-aware AI assistance
-- Seamless project organization
+- Custom assistant for each project
+- Dark Mode
+- User role management
+- OPENAI API integration
+- Prisma ORM
+- NextJS App Router
+- Docker containerization
+- PostgreSQL database
+- NextAuth authentication
+- Tailwind CSS
+- Shadcn UI
+
+## Screenshots
+
+### Dashboard
+![Dashboard](docs/images/dashboard.png)
+*The main dashboard provides an overview of your projects and recent activities.*
+
+### Project View
+![Project View](docs/images/project-view.png)
+*Detailed project view with AI-assisted features and team collaboration tools.*
+
+### Assistants Management
+![Assistants Management](docs/images/assistant-management.png)
+*Create and manage multiple AI-assisted projects with custom assistant features.*
+
+### AI Chat Interface
+![AI Chat](docs/images/ai-chat.png)
+*The AI assistant provides context-aware responses based on your project data.*
+
+### Document Analysis
+![Document Analysis](docs/images/document-management.png)
+*Upload and analyze documents with AI-powered insights.*
 
 ## Learn More
 
