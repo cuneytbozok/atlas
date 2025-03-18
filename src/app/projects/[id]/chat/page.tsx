@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X, ArrowLeft } from "lucide-react";
+import { MessagesSquare, Plus, Trash2, Edit, ArrowRight, RefreshCw, ListPlus, X, ArrowLeft, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface Thread {
   id: string;
@@ -70,6 +71,39 @@ export default function ProjectChatPage() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [currentRun, setCurrentRun] = useState<Run | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Add state for mobile sidebar toggle
+  const [showSidebar, setShowSidebar] = useState(true);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check if mobile on initial load and when window resizes
+  useEffect(() => {
+    const checkScreenWidth = () => {
+      if (typeof window !== 'undefined') {
+        const isMobile = window.innerWidth < 768; // Standard md breakpoint
+        setShowSidebar(!isMobile);
+      }
+    };
+
+    // Initial check
+    checkScreenWidth();
+
+    // Set up event listener for window resize
+    window.addEventListener('resize', checkScreenWidth);
+
+    // Clean up event listener on component unmount
+    return () => {
+      window.removeEventListener('resize', checkScreenWidth);
+    };
+  }, []);
+
+  // Scroll to bottom of messages when new messages arrive
+  useEffect(() => {
+    if (messagesContainerRef.current && threadMessages.length > 0) {
+      const container = messagesContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [threadMessages]);
 
   // Fetch threads on initial load
   useEffect(() => {
@@ -359,9 +393,11 @@ export default function ProjectChatPage() {
   };
 
   const handleThreadSelect = (threadId: string) => {
-    if (threadId !== selectedThreadId) {
-      setSelectedThreadId(threadId);
-      setThreadMessages([]);
+    setSelectedThreadId(threadId);
+    
+    // Hide sidebar on mobile after thread selection
+    if (window.innerWidth < 768) {
+      setShowSidebar(false);
     }
   };
 
@@ -382,9 +418,14 @@ export default function ProjectChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Thread List Sidebar */}
-        <div className="w-80 flex-shrink-0 bg-muted/30 border-r p-4 flex flex-col h-full">
+        <div 
+          className={cn(
+            "md:w-80 w-full absolute md:relative z-20 flex-shrink-0 bg-background md:bg-muted/30 border-r p-4 flex flex-col h-full transition-transform duration-300 ease-in-out shadow-lg md:shadow-none",
+            showSidebar ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          )}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" asChild className="h-7 w-7 mr-1">
@@ -394,10 +435,20 @@ export default function ProjectChatPage() {
               </Button>
               <h2 className="text-xl font-semibold">Chats</h2>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setNewThreadDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Chat
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setNewThreadDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Chat
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="md:hidden h-7 w-7" 
+                onClick={() => setShowSidebar(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           
           {isLoadingThreads ? (
@@ -470,15 +521,38 @@ export default function ProjectChatPage() {
           )}
         </div>
 
+        {/* Overlay for mobile when sidebar is open */}
+        {showSidebar && (
+          <div 
+            className="fixed inset-0 bg-black/20 z-10 md:hidden" 
+            onClick={() => setShowSidebar(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Chat Area */}
         <div className="flex-1 flex flex-col h-full">
+          {/* Mobile sidebar toggle */}
+          <div className="md:hidden flex items-center pl-4 py-2 border-b">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="mr-2" 
+              onClick={() => setShowSidebar(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h2 className="text-lg font-semibold truncate">
+              {threads.find((t) => t.id === selectedThreadId)?.title || "Chat"}
+            </h2>
+          </div>
+
           {selectedThreadId ? (
             <>
-              {/* Chat Header */}
-              <div className="py-3 px-6 border-b flex items-center justify-between">
+              {/* Chat Header - only on desktop */}
+              <div className="py-3 px-6 border-b hidden md:flex items-center justify-between">
                 <h2 className="text-xl font-semibold">
-                  {threads.find((t) => t.id === selectedThreadId)?.title ||
-                    "Chat"}
+                  {threads.find((t) => t.id === selectedThreadId)?.title || "Chat"}
                 </h2>
                 <div className="flex items-center gap-2">
                   <Button
@@ -497,7 +571,11 @@ export default function ProjectChatPage() {
               </div>
 
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4" id="messages-container">
+              <div 
+                className="flex-1 overflow-y-auto p-4 space-y-4" 
+                id="messages-container"
+                ref={messagesContainerRef}
+              >
                 {isLoadingMessages ? (
                   <div className="space-y-4">
                     <Skeleton className="h-16 w-3/4" />

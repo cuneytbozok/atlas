@@ -47,12 +47,12 @@ export default function ProjectChatLayout({
 
   return (
     <>
-      <div className="space-y-2 mb-6">
+      <div className="space-y-2 mb-4 md:mb-6">
         {isLoading ? (
           <Skeleton className="h-8 w-64" />
         ) : (
           <div>
-            <h1 className="text-display">{project?.name || 'Project Chat'}</h1>
+            <h1 className="text-2xl md:text-display font-bold">{project?.name || 'Project Chat'}</h1>
             <p className="text-muted-foreground text-sm">
               Chat with your project assistant
             </p>
@@ -60,7 +60,7 @@ export default function ProjectChatLayout({
         )}
       </div>
 
-      <div className="flex-1 flex flex-col h-[calc(100vh-12rem)]">
+      <div className="flex-1 flex flex-col h-[calc(100vh-10rem)] md:h-[calc(100vh-12rem)]">
         {children}
       </div>
     </>

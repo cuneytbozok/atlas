@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   LucideHome, 
@@ -34,6 +34,28 @@ export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { hasRole } = useAuth();
   const isAdmin = hasRole("ADMIN");
+
+  // Check if mobile on initial load and when window resizes
+  useEffect(() => {
+    // Function to check screen width and set collapsed state
+    const checkScreenWidth = () => {
+      if (typeof window !== 'undefined') {
+        const isMobile = window.innerWidth < 768; // Standard md breakpoint
+        setCollapsed(isMobile);
+      }
+    };
+
+    // Initial check
+    checkScreenWidth();
+
+    // Set up event listener for window resize
+    window.addEventListener('resize', checkScreenWidth);
+
+    // Clean up event listener on component unmount
+    return () => {
+      window.removeEventListener('resize', checkScreenWidth);
+    };
+  }, []);
 
   return (
     <div

@@ -26,7 +26,7 @@ export function MainLayout({
         <Topbar />
         <div className="flex flex-1 overflow-hidden">
           <main className={cn("flex-1 overflow-auto", className)}>
-            <div className="min-h-[calc(100vh-8.5rem)] p-6">
+            <div className="min-h-[calc(100vh-8.5rem)] p-3 sm:p-4 md:p-6">
               {children}
             </div>
             <Footer />
