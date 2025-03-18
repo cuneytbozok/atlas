@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   DropdownMenu,
@@ -14,12 +13,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { 
   LucideBell, 
-  LucideSearch, 
   LucideSun, 
   LucideMoon, 
   LucideUser,
-  LucideLogOut,
-  LucideSettings
+  LucideLogOut
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
@@ -59,27 +56,17 @@ export function Topbar({ className }: TopbarProps) {
         className
       )}
     >
-      <div className="flex items-center gap-4">
-        <div className="flex items-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link href="/" className="font-bold text-lg mr-4">ATLAS</Link>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Advanced Team Learning Assistant System</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <div className="relative">
-          <LucideSearch className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            className="h-9 w-64 pl-8"
-          />
-        </div>
+      <div className="flex items-center">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/" className="font-bold text-lg">ATLAS</Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Advanced Team Learning Assistant System</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="rounded-full">
