@@ -422,31 +422,53 @@ export default function ProjectChatPage() {
         {/* Thread List Sidebar */}
         <div 
           className={cn(
-            "md:w-80 w-full absolute md:relative z-20 flex-shrink-0 bg-background md:bg-muted/30 border-r p-4 flex flex-col h-full transition-transform duration-300 ease-in-out shadow-lg md:shadow-none",
+            "md:w-80 w-full absolute md:relative z-20 flex-shrink-0 bg-background border-r p-4 flex flex-col h-full transition-transform duration-300 ease-in-out",
             showSidebar ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           )}
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" asChild className="h-7 w-7 mr-1">
-                <Link href={`/projects/${projectId}`}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
+          {/* Sidebar Header */}
+          <div className="flex flex-col gap-3 mb-4">
+            <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Chats</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setNewThreadDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Chat
-              </Button>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="md:hidden h-7 w-7" 
+                className="md:hidden h-8 w-8" 
                 onClick={() => setShowSidebar(false)}
               >
                 <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                asChild 
+                className="md:hidden"
+              >
+                <Link href={`/projects/${projectId}`}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Project
+                </Link>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setNewThreadDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Chat
+              </Button>
+            </div>
+            
+            <div className="hidden md:block">
+              <Button variant="ghost" size="sm" asChild className="pl-0 h-7">
+                <Link href={`/projects/${projectId}`}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Project
+                </Link>
               </Button>
             </div>
           </div>
@@ -521,19 +543,10 @@ export default function ProjectChatPage() {
           )}
         </div>
 
-        {/* Overlay for mobile when sidebar is open */}
-        {showSidebar && (
-          <div 
-            className="fixed inset-0 bg-black/20 z-10 md:hidden" 
-            onClick={() => setShowSidebar(false)}
-            aria-hidden="true"
-          />
-        )}
-
         {/* Chat Area */}
         <div className="flex-1 flex flex-col h-full">
           {/* Mobile sidebar toggle */}
-          <div className="md:hidden flex items-center pl-4 py-2 border-b">
+          <div className="md:hidden flex items-center pl-4 py-3 border-b">
             <Button 
               variant="ghost" 
               size="icon" 
