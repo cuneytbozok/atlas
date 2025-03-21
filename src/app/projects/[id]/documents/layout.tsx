@@ -52,10 +52,9 @@ export default function ProjectDocumentsLayout({
           <Skeleton className="h-8 w-64" />
         ) : (
           <div>
-            <h1 className="text-display">{project?.name || 'Project Documents'}</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage documents and files for your project
-            </p>
+            <h1 className="text-display">
+              {project?.name ? `${project.name} - Documents` : 'Project Documents'}
+            </h1>
           </div>
         )}
       </div>

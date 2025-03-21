@@ -598,8 +598,7 @@ export default function ProjectDocumentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-display">Project Documents</h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground">
             Upload and manage documents for your project
           </p>
         </div>
