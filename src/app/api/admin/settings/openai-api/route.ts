@@ -5,6 +5,7 @@ import { SettingsService } from "@/lib/services/settings-service";
 import { withErrorHandling } from "@/lib/api/error-handler";
 import { withPermission } from "@/lib/middleware/with-permission";
 import { z } from "zod";
+import { AIService } from "@/lib/services/ai-service";
 
 // Schema for OpenAI API key
 const openAiKeySchema = z.object({
@@ -79,6 +80,15 @@ const handleSetApiKey = async (request: Request) => {
   if (!apiKey.startsWith('sk-')) {
     return NextResponse.json(
       { message: "Invalid OpenAI API key format. Keys should start with 'sk-'" },
+      { status: 400 }
+    );
+  }
+  
+  // Validate that the API key works before saving it
+  const isValid = await AIService.testApiKey(apiKey);
+  if (!isValid) {
+    return NextResponse.json(
+      { message: "The API key is invalid or unable to connect to OpenAI. Please check your key and try again." },
       { status: 400 }
     );
   }

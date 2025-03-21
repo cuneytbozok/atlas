@@ -33,6 +33,108 @@ export class AIService {
   }
 
   /**
+   * Checks if a valid OpenAI API key is configured and working
+   * @returns True if a valid API key exists and works, false otherwise
+   */
+  static async checkApiKeyExists(): Promise<boolean> {
+    try {
+      const apiKey = await SettingsService.getOpenAIApiKey();
+      
+      if (!apiKey) {
+        console.log('No OpenAI API key configured');
+        return false;
+      }
+
+      // Make a lightweight test call to the OpenAI API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Hello!"
+            }
+          ],
+          max_tokens: 5 // Minimal tokens to reduce cost
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API key validation failed:', errorData);
+        return false;
+      }
+      
+      console.log('OpenAI API key validated successfully');
+      return true;
+    } catch (error) {
+      console.error('Error validating OpenAI API key:', error);
+      logger.error(error, {
+        action: 'check_api_key_exists'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Tests if an API key is valid without saving it
+   * @param apiKey - The OpenAI API key to test
+   * @returns True if the API key is valid, false otherwise
+   */
+  static async testApiKey(apiKey: string): Promise<boolean> {
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      console.log('Invalid API key format');
+      return false;
+    }
+
+    try {
+      // Make a lightweight test call to the OpenAI API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Hello!"
+            }
+          ],
+          max_tokens: 5 // Minimal tokens to reduce cost
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API key validation failed:', errorData);
+        return false;
+      }
+      
+      console.log('API key validated successfully');
+      return true;
+    } catch (error) {
+      console.error('Error testing OpenAI API key:', error);
+      return false;
+    }
+  }
+
+  /**
    * Creates a vector store for a project
    * @param projectId - ID of the project
    * @param name - Name of the vector store

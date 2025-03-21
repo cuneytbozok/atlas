@@ -150,6 +150,20 @@ export const POST = withErrorHandling(async (request: Request) => {
   const body = await request.json();
   
   try {
+    // Check if there's a valid OpenAI API key configured
+    const hasValidApiKey = await AIService.checkApiKeyExists();
+    
+    if (!hasValidApiKey) {
+      logger.error(`Project creation attempted with no valid OpenAI API key`, {
+        userId: session.user.id,
+        email: session.user.email
+      });
+      return NextResponse.json(
+        { message: "Cannot create a project: No valid OpenAI API key configured. Please contact your administrator." },
+        { status: 403 }
+      );
+    }
+  
     // Validate request body
     const validatedData = createProjectSchema.parse(body);
     const { name, description, status, members, projectManagerId, creatorShouldBeTeamMember } = validatedData;
