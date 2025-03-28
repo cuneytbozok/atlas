@@ -42,13 +42,36 @@ interface AnalyticsData {
   };
 }
 
+// Add OpenAI usage data interfaces
+interface UsageCost {
+  total: number;
+  daily: {
+    date: string;
+    cost: number;
+  }[];
+}
+
+interface OpenAIUsageData {
+  completions: UsageCost;
+  embeddings: UsageCost;
+  vectorStores: UsageCost;
+  totalCost: number;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+}
+
 export default function InsightsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, hasRole } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [openAIData, setOpenAIData] = useState<OpenAIUsageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOpenAIDataLoading, setIsOpenAIDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openAIError, setOpenAIError] = useState<string | null>(null);
   
   // Check if user is admin
   const isAdmin = hasRole("ADMIN");
@@ -118,6 +141,51 @@ export default function InsightsPage() {
     };
     
     fetchData();
+  }, [dateRange.startDate, dateRange.endDate, isAdmin]);
+  
+  // Fetch OpenAI usage data
+  useEffect(() => {
+    // Skip fetching if not admin
+    if (!isAdmin) return;
+    
+    const fetchOpenAIData = async () => {
+      try {
+        setIsOpenAIDataLoading(true);
+        
+        // Format dates for API request
+        const startDateStr = format(dateRange.startDate, "yyyy-MM-dd");
+        const endDateStr = format(dateRange.endDate, "yyyy-MM-dd");
+        
+        const response = await fetch(
+          `/api/analytics/openai-usage?startDate=${startDateStr}&endDate=${endDateStr}`
+        );
+        
+        // Handle different status codes
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          const errorMessage = errorData?.message || `Error: HTTP ${response.status}`;
+          
+          if (response.status === 403) {
+            throw new Error(`Access denied: ${errorMessage}`);
+          } else if (response.status === 401) {
+            throw new Error(`Authentication required: ${errorMessage}`);
+          } else {
+            throw new Error(`Error fetching OpenAI usage data: ${errorMessage}`);
+          }
+        }
+        
+        const openAIUsageData = await response.json();
+        setOpenAIData(openAIUsageData);
+        setOpenAIError(null);
+      } catch (err: any) {
+        console.error("Failed to fetch OpenAI usage data:", err);
+        setOpenAIError(err.message || "Failed to load OpenAI usage data. Please try again later.");
+      } finally {
+        setIsOpenAIDataLoading(false);
+      }
+    };
+    
+    fetchOpenAIData();
   }, [dateRange.startDate, dateRange.endDate, isAdmin]);
   
   // Don't render page content for non-admin users
@@ -197,7 +265,7 @@ export default function InsightsPage() {
       <Tabs defaultValue="analytics" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-8">
           <TabsTrigger value="analytics">App Analytics</TabsTrigger>
-          <TabsTrigger value="other">Other Insights</TabsTrigger>
+          <TabsTrigger value="cost">Cost Analytics</TabsTrigger>
         </TabsList>
         
         <TabsContent value="analytics" className="space-y-8">
@@ -337,20 +405,192 @@ export default function InsightsPage() {
           )}
         </TabsContent>
         
-        <TabsContent value="other">
-          <Card>
-            <CardHeader>
-              <CardTitle>Additional Insights</CardTitle>
-              <CardDescription>
-                This section will be implemented in a future update.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>The second tab will contain additional insights and analytics in the future.</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="cost" className="space-y-8">
+          {isOpenAIDataLoading ? (
+            <div className="flex justify-center p-12">
+              <p className="text-lg">Loading OpenAI usage data...</p>
+            </div>
+          ) : openAIError ? (
+            <div className="flex justify-center p-12">
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle>Error Loading Cost Data</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-red-500">{openAIError}</p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <>
+              {/* Total Usage Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl">Completions</CardTitle>
+                    <CardDescription>Chat & completion API usage</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      ${openAIData?.completions.total.toFixed(2)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl">Embeddings</CardTitle>
+                    <CardDescription>Embedding API usage</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      ${openAIData?.embeddings.total.toFixed(2)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl">Vector Stores</CardTitle>
+                    <CardDescription>Vector storage usage</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      ${openAIData?.vectorStores.total.toFixed(2)}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Total Cost Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Total OpenAI Costs</CardTitle>
+                  <CardDescription>
+                    Total costs for the selected date range
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-4xl font-bold text-center py-4">
+                    ${openAIData?.totalCost.toFixed(2)}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Daily Cost Trend Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Daily Cost Trends</CardTitle>
+                  <CardDescription>
+                    Daily OpenAI API costs for the selected period
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={combineOpenAIDailyData(openAIData)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return format(date, "MMM dd");
+                          }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value) => [`$${Number(value).toFixed(2)}`, ""]}
+                          labelFormatter={(label) => format(new Date(label), "PPP")}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone"
+                          dataKey="completions"
+                          name="Completions"
+                          stroke="#8884d8"
+                          activeDot={{ r: 8 }}
+                        />
+                        <Line 
+                          type="monotone"
+                          dataKey="embeddings"
+                          name="Embeddings"
+                          stroke="#82ca9d" 
+                        />
+                        <Line 
+                          type="monotone"
+                          dataKey="vectorStores"
+                          name="Vector Stores"
+                          stroke="#ffc658"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// Helper function to combine daily data from different sources
+function combineOpenAIDailyData(data: OpenAIUsageData | null) {
+  if (!data) return [];
+  
+  // Create a map to combine data by date
+  const combinedData: Record<string, {
+    date: string;
+    completions: number;
+    embeddings: number;
+    vectorStores: number;
+  }> = {};
+  
+  // Process completions data
+  data.completions.daily.forEach(item => {
+    if (!combinedData[item.date]) {
+      combinedData[item.date] = {
+        date: item.date,
+        completions: 0,
+        embeddings: 0,
+        vectorStores: 0
+      };
+    }
+    combinedData[item.date].completions = item.cost;
+  });
+  
+  // Process embeddings data
+  data.embeddings.daily.forEach(item => {
+    if (!combinedData[item.date]) {
+      combinedData[item.date] = {
+        date: item.date,
+        completions: 0,
+        embeddings: 0,
+        vectorStores: 0
+      };
+    }
+    combinedData[item.date].embeddings = item.cost;
+  });
+  
+  // Process vector stores data
+  data.vectorStores.daily.forEach(item => {
+    if (!combinedData[item.date]) {
+      combinedData[item.date] = {
+        date: item.date,
+        completions: 0,
+        embeddings: 0,
+        vectorStores: 0
+      };
+    }
+    combinedData[item.date].vectorStores = item.cost;
+  });
+  
+  // Convert to array and sort by date
+  return Object.values(combinedData).sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 } 
