@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
 import { CalendarIcon, ShieldAlert } from "lucide-react";
 
 // Define types for analytics data
@@ -72,6 +72,8 @@ interface OpenAIUsageData {
     startDate: string;
     endDate: string;
   };
+  isMockData?: boolean;
+  mockReason?: string;
 }
 
 export default function InsightsPage() {
@@ -187,11 +189,23 @@ export default function InsightsPage() {
         }
         
         const openAIUsageData = await response.json();
+        
+        // Check if we received valid OpenAI usage data
+        if (!openAIUsageData || typeof openAIUsageData !== 'object') {
+          console.warn("Received invalid OpenAI usage data format:", openAIUsageData);
+          throw new Error("Invalid data format received from OpenAI usage API");
+        }
+        
         setOpenAIData(openAIUsageData);
         setOpenAIError(null);
       } catch (err: any) {
         console.error("Failed to fetch OpenAI usage data:", err);
-        setOpenAIError(err.message || "Failed to load OpenAI usage data. Please try again later.");
+        // Set a user-friendly error message
+        setOpenAIError(
+          "Could not load OpenAI usage data. This might be due to API key permission issues. " +
+          "The API key needs the 'api.usage.read' scope. " +
+          "Mock data may be displayed instead."
+        );
       } finally {
         setIsOpenAIDataLoading(false);
       }
@@ -238,7 +252,10 @@ export default function InsightsPage() {
     router.push(`/insights?${params.toString()}`);
     
     setDateRange({ startDate, endDate });
-    setIsCalendarOpen(false);
+    // Only close the calendar when we have a complete range
+    if (startDate && endDate) {
+      setIsCalendarOpen(false);
+    }
   };
 
   return (
@@ -255,6 +272,17 @@ export default function InsightsPage() {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
+            {/* Add clear instructions about the date picker */}
+            <div className="p-3 border-b border-muted">
+              <div className="text-sm font-medium text-center">
+                Select date range
+              </div>
+              <div className="text-xs text-muted-foreground text-center mt-1">
+                {dateRange.startDate && !dateRange.endDate ? 
+                  `${format(dateRange.startDate, "PPP")} - Click a second date to complete selection` 
+                  : "Click two dates to select a range"}
+              </div>
+            </div>
             <Calendar
               initialFocus
               mode="range"
@@ -264,12 +292,37 @@ export default function InsightsPage() {
                 to: dateRange.endDate,
               }}
               onSelect={(range) => {
-                if (range?.from && range?.to) {
-                  updateDateRange(range.from, range.to);
+                if (range?.from) {
+                  const newEndDate = range.to || range.from;
+                  
+                  // Always update the internal state to show progress
+                  setDateRange({
+                    startDate: range.from,
+                    endDate: newEndDate,
+                  });
+                  
+                  // Only update URL and close calendar when a complete range is selected
+                  if (range.to) {
+                    updateDateRange(range.from, newEndDate);
+                  }
                 }
               }}
               numberOfMonths={2}
+              disabled={(date) => date > new Date()}
             />
+            <div className="p-3 border-t border-muted flex justify-end">
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  if (dateRange.startDate && dateRange.endDate) {
+                    updateDateRange(dateRange.startDate, dateRange.endDate);
+                  }
+                }}
+                disabled={!dateRange.startDate || !dateRange.endDate}
+              >
+                Apply Range
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
@@ -420,216 +473,325 @@ export default function InsightsPage() {
         <TabsContent value="cost" className="space-y-8">
           {isOpenAIDataLoading ? (
             <div className="flex justify-center p-12">
-              <p className="text-lg">Loading OpenAI usage data...</p>
+              <p className="text-lg">Loading cost data...</p>
             </div>
           ) : openAIError ? (
-            <div className="flex justify-center p-12">
-              <Card className="w-full">
-                <CardHeader>
-                  <CardTitle>Error Loading Cost Data</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-red-500">{openAIError}</p>
-                </CardContent>
-              </Card>
+            <div className="flex flex-col justify-center p-6 bg-muted/10 rounded-lg border">
+              <p className="text-amber-600 mb-2">Note: {openAIError}</p>
+              {openAIData ? (
+                <p className="text-muted-foreground">Displaying available data below. Some information may be estimates.</p>
+              ) : null}
             </div>
-          ) : (
-            <>
-              {/* Total Usage Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xl">Completions</CardTitle>
-                    <CardDescription>Chat & completion API usage</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-2">
-                        <span className="text-muted-foreground">Input Tokens:</span>
-                        <span className="font-semibold text-right">
-                          {openAIData?.completions.total.tokens?.input.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2">
-                        <span className="text-muted-foreground">Output Tokens:</span>
-                        <span className="font-semibold text-right">
-                          {openAIData?.completions.total.tokens?.output.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 border-t pt-2 mt-1">
-                        <span className="text-muted-foreground">Cost:</span>
-                        <span className="font-semibold text-right">
-                          ${openAIData?.completions.total.cost.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xl">Embeddings</CardTitle>
-                    <CardDescription>Embedding API usage</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-2">
-                        <span className="text-muted-foreground">Input Tokens:</span>
-                        <span className="font-semibold text-right">
-                          {openAIData?.embeddings.total.tokens?.input.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 border-t pt-2 mt-1">
-                        <span className="text-muted-foreground">Cost:</span>
-                        <span className="font-semibold text-right">
-                          ${openAIData?.embeddings.total.cost.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xl">Vector Stores</CardTitle>
-                    <CardDescription>Vector storage usage</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-2">
-                        <span className="text-muted-foreground">Storage:</span>
-                        <span className="font-semibold text-right">
-                          {formatBytes(openAIData?.vectorStores.total.bytes || 0)}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 border-t pt-2 mt-1">
-                        <span className="text-muted-foreground">Cost:</span>
-                        <span className="font-semibold text-right">
-                          ${openAIData?.vectorStores.total.cost.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              {/* Total Cost Card */}
+          ) : openAIData?.isMockData ? (
+            <div className="flex flex-col justify-center p-6 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800 mb-6">
+              <p className="text-amber-600 font-medium mb-2">
+                Note: Displaying simulated OpenAI usage data
+                {openAIData.mockReason && (
+                  <span className="ml-1">
+                    ({openAIData.mockReason === "api_key_permission" 
+                      ? "API key missing required permissions" 
+                      : openAIData.mockReason === "api_error" 
+                      ? "API request errors" 
+                      : openAIData.mockReason === "api_exception" 
+                      ? "API exception occurred" 
+                      : openAIData.mockReason === "no_api_key"
+                      ? "No API key configured"
+                      : openAIData.mockReason === "rate_limit"
+                      ? "API rate limit exceeded"
+                      : openAIData.mockReason === "partial_data"
+                      ? "Partial data available"
+                      : "fallback data"})
+                  </span>
+                )}
+              </p>
+              <p className="text-muted-foreground">
+                {openAIData.mockReason === "api_key_permission" ? (
+                  "To see actual usage, ensure your OpenAI API key has the 'api.usage.read' scope. Service accounts need specific permission for usage data."
+                ) : openAIData.mockReason === "rate_limit" ? (
+                  "The OpenAI API is currently rate limited. Please try again later."
+                ) : openAIData.mockReason === "no_api_key" ? (
+                  "Please configure an OpenAI API key in the settings to see actual usage data."
+                ) : openAIData.mockReason === "partial_data" ? (
+                  "Some OpenAI usage data was retrieved successfully, but other parts are simulated."
+                ) : (
+                  "This data is generated for demonstration purposes. To see actual usage, ensure your OpenAI API key has the 'api.usage.read' scope."
+                )}
+              </p>
+            </div>
+          ) : null}
+          
+          {/* Total Usage Summary */}
+          {openAIData && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Total OpenAI Costs</CardTitle>
-                  <CardDescription>
-                    Total costs for the selected date range
-                  </CardDescription>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">API Costs</CardTitle>
+                  <CardDescription>Total OpenAI API usage costs</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-4xl font-bold text-center py-4">
-                    ${openAIData?.totalCost.toFixed(2)}
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2">
+                      <span className="text-muted-foreground">Completions Tokens (Input):</span>
+                      <span className="font-semibold text-right">
+                        {openAIData?.completions.total.tokens?.input.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2">
+                      <span className="text-muted-foreground">Completions Tokens (Output):</span>
+                      <span className="font-semibold text-right">
+                        {openAIData?.completions.total.tokens?.output.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">Total Cost:</span>
+                      <span className="font-semibold text-right">
+                        ${openAIData?.totalCost.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
               
-              {/* Usage Trend Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Completions Token Usage Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Completions Token Usage</CardTitle>
-                    <CardDescription>
-                      Daily token usage for completions
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={getCompletionsTokenData(openAIData)}
-                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="date" 
-                            tickFormatter={(value) => {
-                              const date = new Date(value);
-                              return format(date, "MMM dd");
-                            }}
-                          />
-                          <YAxis />
-                          <Tooltip 
-                            formatter={(value) => [Number(value).toLocaleString(), ""]}
-                            labelFormatter={(label) => format(new Date(label), "PPP")}
-                          />
-                          <Legend />
-                          <Bar 
-                            dataKey="input"
-                            name="Input Tokens"
-                            fill="#8884d8"
-                          />
-                          <Bar 
-                            dataKey="output"
-                            name="Output Tokens"
-                            fill="#82ca9d" 
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Embeddings</CardTitle>
+                  <CardDescription>Embeddings token usage</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2">
+                      <span className="text-muted-foreground">Tokens:</span>
+                      <span className="font-semibold text-right">
+                        {openAIData?.embeddings.total.tokens?.input.toLocaleString() || 0}
+                      </span>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                {/* Cost Trends Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Daily Cost Trends</CardTitle>
-                    <CardDescription>
-                      Daily OpenAI API costs
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                          data={getCostTrendData(openAIData)}
-                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="date" 
-                            tickFormatter={(value) => {
-                              const date = new Date(value);
-                              return format(date, "MMM dd");
-                            }}
-                          />
-                          <YAxis />
-                          <Tooltip 
-                            formatter={(value) => [`$${Number(value).toFixed(2)}`, ""]}
-                            labelFormatter={(label) => format(new Date(label), "PPP")}
-                          />
-                          <Legend />
-                          <Line 
-                            type="monotone"
-                            dataKey="completions"
-                            name="Completions"
-                            stroke="#8884d8"
-                            activeDot={{ r: 8 }}
-                          />
-                          <Line 
-                            type="monotone"
-                            dataKey="embeddings"
-                            name="Embeddings"
-                            stroke="#82ca9d" 
-                          />
-                          <Line 
-                            type="monotone"
-                            dataKey="vectorStores"
-                            name="Vector Stores"
-                            stroke="#ffc658"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="grid grid-cols-2 border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">Note:</span>
+                      <span className="text-right text-muted-foreground text-sm">
+                        Cost included in total
+                      </span>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Vector Stores</CardTitle>
+                  <CardDescription>Vector storage usage</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2">
+                      <span className="text-muted-foreground">Storage:</span>
+                      <span className="font-semibold text-right">
+                        {formatBytes(openAIData?.vectorStores.total.bytes || 0)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">Note:</span>
+                      <span className="text-right text-muted-foreground text-sm">
+                        Cost included in total
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          
+          {/* Total Cost Card */}
+          {openAIData && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Total OpenAI Costs</CardTitle>
+                <CardDescription>
+                  Total costs for the selected date range
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-center py-4">
+                  ${openAIData?.totalCost.toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Usage Trend Charts */}
+          {openAIData && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Completions Token Usage Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Completions Token Usage</CardTitle>
+                  <CardDescription>
+                    Daily token usage for completions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={getCompletionsTokenData(openAIData)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return format(date, "MMM dd");
+                          }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value) => [Number(value).toLocaleString(), ""]}
+                          labelFormatter={(label) => format(new Date(label), "PPP")}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="input"
+                          name="Input Tokens"
+                          fill="#8884d8"
+                        />
+                        <Bar 
+                          dataKey="output"
+                          name="Output Tokens"
+                          fill="#82ca9d" 
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Daily Cost Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Daily Cost Trend</CardTitle>
+                  <CardDescription>
+                    Daily OpenAI API costs
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={getDailyCostData(openAIData)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return format(date, "MMM dd");
+                          }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value) => [`$${Number(value).toFixed(2)}`, "Cost"]}
+                          labelFormatter={(label) => format(new Date(label), "PPP")}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone"
+                          dataKey="cost"
+                          name="Daily Cost"
+                          stroke="#8884d8"
+                          activeDot={{ r: 8 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Embeddings Token Usage Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Embeddings Token Usage</CardTitle>
+                  <CardDescription>
+                    Daily token usage for embeddings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={getEmbeddingsTokenData(openAIData)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return format(date, "MMM dd");
+                          }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value) => [Number(value).toLocaleString(), "Tokens"]}
+                          labelFormatter={(label) => format(new Date(label), "PPP")}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="tokens"
+                          name="Embedding Tokens"
+                          fill="#82ca9d"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Vector Stores Usage Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vector Storage Usage</CardTitle>
+                  <CardDescription>
+                    Daily vector storage usage in bytes
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={getVectorStoresData(openAIData)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return format(date, "MMM dd");
+                          }}
+                        />
+                        <YAxis 
+                          tickFormatter={(value) => formatBytes(value, 0)}
+                        />
+                        <Tooltip 
+                          formatter={(value) => [formatBytes(Number(value)), "Storage"]}
+                          labelFormatter={(label) => format(new Date(label), "PPP")}
+                        />
+                        <Legend />
+                        <Area 
+                          type="monotone"
+                          dataKey="bytes"
+                          name="Storage Used"
+                          fill="#ffc658"
+                          stroke="#ffc658"
+                          fillOpacity={0.3}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -661,57 +823,33 @@ function getCompletionsTokenData(data: OpenAIUsageData | null) {
   }));
 }
 
-// Helper function to prepare cost data for the trends chart
-function getCostTrendData(data: OpenAIUsageData | null) {
+// New helper function to get embeddings token data
+function getEmbeddingsTokenData(data: OpenAIUsageData | null) {
   if (!data) return [];
   
-  // Create a map to combine data by date
-  const dateMap = new Map();
+  return data.embeddings.daily.map(day => ({
+    date: day.date,
+    tokens: day.tokens?.input || 0
+  }));
+}
+
+// Updated helper function to prepare cost data for the trends chart
+function getDailyCostData(data: OpenAIUsageData | null) {
+  if (!data) return [];
   
-  // Add completions data
-  data.completions.daily.forEach(item => {
-    if (!dateMap.has(item.date)) {
-      dateMap.set(item.date, {
-        date: item.date,
-        completions: 0,
-        embeddings: 0,
-        vectorStores: 0
-      });
-    }
-    const entry = dateMap.get(item.date);
-    entry.completions = item.cost;
-  });
+  // Just use the completions cost data which contains all costs
+  return data.completions.daily.map(day => ({
+    date: day.date,
+    cost: day.cost
+  })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+// Helper function to prepare vector stores usage data for charts
+function getVectorStoresData(data: OpenAIUsageData | null) {
+  if (!data) return [];
   
-  // Add embeddings data
-  data.embeddings.daily.forEach(item => {
-    if (!dateMap.has(item.date)) {
-      dateMap.set(item.date, {
-        date: item.date,
-        completions: 0,
-        embeddings: 0,
-        vectorStores: 0
-      });
-    }
-    const entry = dateMap.get(item.date);
-    entry.embeddings = item.cost;
-  });
-  
-  // Add vector stores data
-  data.vectorStores.daily.forEach(item => {
-    if (!dateMap.has(item.date)) {
-      dateMap.set(item.date, {
-        date: item.date,
-        completions: 0,
-        embeddings: 0,
-        vectorStores: 0
-      });
-    }
-    const entry = dateMap.get(item.date);
-    entry.vectorStores = item.cost;
-  });
-  
-  // Convert to array and sort by date
-  return Array.from(dateMap.values()).sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+  return data.vectorStores.daily.map(day => ({
+    date: day.date,
+    bytes: day.bytes || 0
+  }));
 } 

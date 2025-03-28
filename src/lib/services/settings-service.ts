@@ -240,4 +240,28 @@ export class SettingsService {
     const model = await this.getSetting('openai.model');
     return model || 'gpt-4o'; // Default to gpt-4o if not set
   }
+
+  /**
+   * Set the OpenAI Admin API key (for analytics/usage data)
+   * @param apiKey - The OpenAI Admin API key with usage read permissions
+   * @param createdBy - Optional user ID of who set the key
+   * @returns The created or updated setting
+   */
+  static async setOpenAIAdminApiKey(apiKey: string, createdBy?: string): Promise<AppSetting | null> {
+    return this.setSetting(
+      'openai.admin.api.key',
+      apiKey,
+      true, // Always encrypt API keys
+      createdBy,
+      'OpenAI Admin API Key with usage read permissions for analytics'
+    );
+  }
+
+  /**
+   * Get the OpenAI Admin API key
+   * @returns The Admin API key, or null if not set
+   */
+  static async getOpenAIAdminApiKey(): Promise<string | null> {
+    return this.getSetting('openai.admin.api.key');
+  }
 } 

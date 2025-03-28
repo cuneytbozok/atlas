@@ -4,9 +4,9 @@ FROM node:21-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Install dependencies using our custom script with legacy-peer-deps
+COPY package.json package-lock.json* install-dependencies.sh ./
+RUN chmod +x install-dependencies.sh && ./install-dependencies.sh
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -48,10 +48,11 @@ RUN adduser --system --uid 1001 nextjs
 # Copy necessary files for Prisma
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/install-dependencies.sh ./install-dependencies.sh
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Install production dependencies including bcryptjs needed for admin user creation
-RUN npm ci --only=production
+# Install production dependencies with legacy-peer-deps
+RUN chmod +x install-dependencies.sh && ./install-dependencies.sh --only=production
 
 # Copy the public directory
 COPY --from=builder /app/public ./public

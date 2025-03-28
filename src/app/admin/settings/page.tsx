@@ -36,6 +36,12 @@ export default function AdminSettingsPage() {
   const [isDatabaseError, setIsDatabaseError] = useState(false);
   const [aiModel, setAiModel] = useState("gpt-4o");
   const [isModelSaving, setIsModelSaving] = useState(false);
+  
+  // Admin API key state
+  const [adminApiKey, setAdminApiKey] = useState("");
+  const [isAdminApiKeySet, setIsAdminApiKeySet] = useState(false);
+  const [showAdminApiKey, setShowAdminApiKey] = useState(false);
+  const [isAdminApiKeySaving, setIsAdminApiKeySaving] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -186,6 +192,20 @@ export default function AdminSettingsPage() {
       console.log("API response data:", data);
       setIsApiKeySet(data.isSet);
       
+      // Also check admin API key status
+      const adminResponse = await fetch(`/api/admin/settings/openai-admin-api`, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (adminResponse.ok) {
+        const adminData = await adminResponse.json();
+        console.log("Admin API response data:", adminData);
+        setIsAdminApiKeySet(adminData.isSet);
+      }
+      
       // Get the current model setting
       const modelResponse = await fetch(`/api/admin/settings/openai-model`);
       if (modelResponse.ok) {
@@ -322,6 +342,87 @@ export default function AdminSettingsPage() {
       });
     } finally {
       setIsModelSaving(false);
+    }
+  };
+
+  // Add handler for saving the admin API key
+  const handleSaveAdminApiKey = async () => {
+    try {
+      setError(null);
+      setIsAdminApiKeySaving(true);
+
+      // Simple validation
+      if (!adminApiKey.trim()) {
+        setError("Admin API key is required");
+        return;
+      }
+
+      // Basic format check for OpenAI API keys
+      if (!adminApiKey.startsWith('sk-')) {
+        setError("Invalid OpenAI API key format. Keys should start with 'sk-'");
+        return;
+      }
+
+      const response = await fetch(`/api/admin/settings/openai-admin-api`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ apiKey: adminApiKey }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save admin API key");
+      }
+
+      setIsAdminApiKeySet(true);
+      setAdminApiKey("");
+      toast.success("Success", {
+        description: "OpenAI Admin API key saved successfully",
+      });
+    } catch (err) {
+      console.error("Error saving admin API key:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to save admin API key";
+      setError(errorMessage);
+      toast.error("Error", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsAdminApiKeySaving(false);
+    }
+  };
+
+  // Add handler for deleting the admin API key
+  const handleDeleteAdminApiKey = async () => {
+    try {
+      setError(null);
+      setIsAdminApiKeySaving(true);
+
+      const response = await fetch(`/api/admin/settings/openai-admin-api`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete admin API key");
+      }
+
+      setIsAdminApiKeySet(false);
+      toast.success("Success", {
+        description: "OpenAI Admin API key removed successfully",
+      });
+    } catch (err) {
+      console.error("Error deleting admin API key:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete admin API key";
+      setError(errorMessage);
+      toast.error("Error", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsAdminApiKeySaving(false);
     }
   };
 
@@ -477,6 +578,84 @@ export default function AdminSettingsPage() {
                       >
                         {isSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
                         Save API Key
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Admin API Key Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Admin API Key</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Separate API key for usage analytics with the 'api.usage.read' permission scope.
+                    Use a dedicated API key with admin permissions for analytics.
+                  </p>
+                  
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : isAdminApiKeySet ? (
+                    <div className="space-y-4">
+                      <Alert variant="default" className="bg-green-50 dark:bg-green-950">
+                        <AlertTitle>Admin API Key Configured</AlertTitle>
+                        <AlertDescription>
+                          Your OpenAI Admin API key is configured for usage analytics.
+                        </AlertDescription>
+                      </Alert>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive">
+                            Remove Admin API Key
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Admin API Key</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove your OpenAI Admin API key? This will disable real usage analytics until a new key is provided.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteAdminApiKey}>
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex">
+                          <Input
+                            type={showAdminApiKey ? "text" : "password"}
+                            placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            value={adminApiKey}
+                            onChange={(e) => setAdminApiKey(e.target.value)}
+                            className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setShowAdminApiKey(!showAdminApiKey)}
+                            className="rounded-l-none border-l-0"
+                            type="button"
+                          >
+                            {showAdminApiKey ? <LucideEyeOff /> : <LucideEye />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleSaveAdminApiKey}
+                        disabled={isAdminApiKeySaving || !adminApiKey.trim()}
+                      >
+                        {isAdminApiKeySaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                        Save Admin API Key
                       </Button>
                     </div>
                   )}
