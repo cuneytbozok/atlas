@@ -1,30 +1,26 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Logo } from "@/components/ui/logo";
 import { 
   LucideHome, 
-  LucideUsers, 
-  LucideSettings, 
   LucideFolder, 
-  LucideChevronLeft, 
-  LucideChevronRight,
+  LucideUsers, 
   LucideUser,
   LucideShield,
-  LucideBrain
+  LucideBrain,
+  LucideSettings,
+  LucideBarChart,
+  LucideChevronLeft, 
+  LucideChevronRight
 } from "lucide-react";
-import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/use-auth";
-import { Logo } from "@/components/ui/logo";
 
 interface SidebarProps {
   className?: string;
@@ -103,6 +99,12 @@ export function Sidebar({ className }: SidebarProps) {
                   href="/admin/assistants"
                   icon={<LucideBrain className="h-5 w-5" />}
                   label="Assistants"
+                  collapsed={collapsed}
+                />
+                <NavItem
+                  href="/insights"
+                  icon={<LucideBarChart className="h-5 w-5" />}
+                  label="Insights"
                   collapsed={collapsed}
                 />
                 <NavItem

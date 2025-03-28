@@ -137,9 +137,15 @@ export default function ProjectChatPage() {
       }
       const data = await response.json();
       setThreadMessages(data.messages || []);
+      
+      // Ensure currentRun is cleared after loading messages
+      // This helps reset the chat input state
+      setCurrentRun(null);
     } catch (error) {
       console.error("Error fetching messages:", error);
       toast.error("Failed to load chat messages");
+      // Also ensure currentRun is cleared on error
+      setCurrentRun(null);
     } finally {
       setIsLoadingMessages(false);
     }
@@ -200,10 +206,14 @@ export default function ProjectChatPage() {
       // If completed, fetch the new messages
       if (data.status === "completed") {
         fetchMessages(selectedThreadId);
+        // Reset currentRun state after completion
+        setCurrentRun(null);
       } else if (data.status === "failed" || data.status === "cancelled") {
         toast.error("Assistant failed to respond", {
           description: "Please try again or contact support if the issue persists."
         });
+        // Reset currentRun state on failure or cancellation
+        setCurrentRun(null);
       }
     } catch (error) {
       console.error("Error checking run status:", error);
@@ -213,7 +223,7 @@ export default function ProjectChatPage() {
 
   // Handle run polling
   useEffect(() => {
-    if (currentRun && currentRun.status !== "completed" && currentRun.status !== "failed") {
+    if (currentRun && currentRun.status !== "completed" && currentRun.status !== "failed" && currentRun.status !== "cancelled") {
       // Clear any existing interval
       if (pollingInterval) {
         clearInterval(pollingInterval);
@@ -246,6 +256,14 @@ export default function ProjectChatPage() {
         console.log(`Cleaning up polling interval for run ${currentRun.id}`);
         clearInterval(interval);
       };
+    } else if (currentRun && (currentRun.status === "completed" || currentRun.status === "failed" || currentRun.status === "cancelled")) {
+      // If run is completed, failed, or cancelled, clean up and reset states
+      console.log(`Run ${currentRun?.id} status is ${currentRun?.status}, clearing polling interval and resetting state`);
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+      // We'll let the checkRunStatus function handle setting currentRun to null
     } else if (pollingInterval) {
       console.log(`Run ${currentRun?.id} status is ${currentRun?.status}, clearing polling interval`);
       clearInterval(pollingInterval);
