@@ -45,7 +45,7 @@ export default function ProjectChatPage() {
   const projectId = params?.id as string;
 
   // Project state
-  const [project, setProject] = useState<{id: string, name: string, assistantId: string | null, vectorStoreId: string | null} | null>(null);
+  const [project, setProject] = useState<{id: string, name: string, status: string, assistantId: string | null, vectorStoreId: string | null} | null>(null);
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
   // Thread state
@@ -71,6 +71,9 @@ export default function ProjectChatPage() {
   // Add state for mobile sidebar toggle
   const [showSidebar, setShowSidebar] = useState(true);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check if the project is archived or completed
+  const isProjectDisabled = project?.status === 'archived' || project?.status === 'completed';
 
   // Make sure we have a project ID
   useEffect(() => {
@@ -324,6 +327,13 @@ export default function ProjectChatPage() {
 
   const createThread = async () => {
     try {
+      // Check if project is archived or completed
+      if (isProjectDisabled) {
+        toast.error("Cannot create new threads for archived and completed projects");
+        setNewThreadDialogOpen(false);
+        return;
+      }
+
       const response = await fetch(`/api/projects/${projectId}/threads`, {
         method: "POST",
         headers: {
@@ -335,7 +345,8 @@ export default function ProjectChatPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create thread: ${response.statusText}`);
+        const data = await response.json();
+        throw new Error(data.error || `Failed to create thread: ${response.statusText}`);
       }
 
       const thread = await response.json();
@@ -346,7 +357,7 @@ export default function ProjectChatPage() {
       toast.success("New chat thread created");
     } catch (error) {
       console.error("Error creating thread:", error);
-      toast.error("Failed to create new chat thread");
+      toast.error(error instanceof Error ? error.message : "Failed to create new chat thread");
     }
   };
 
@@ -417,6 +428,12 @@ export default function ProjectChatPage() {
   const sendMessage = async () => {
     if (!selectedThreadId || !newMessage.trim()) return;
 
+    // Check if project is archived or completed
+    if (isProjectDisabled) {
+      toast.error("Cannot send messages in archived or completed projects");
+      return;
+    }
+
     setIsSendingMessage(true);
     try {
       const response = await fetch(`/api/threads/${selectedThreadId}/messages`, {
@@ -430,7 +447,8 @@ export default function ProjectChatPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to send message: ${response.statusText}`);
+        const data = await response.json();
+        throw new Error(data.error || `Failed to send message: ${response.statusText}`);
       }
 
       const result = await response.json();
@@ -446,7 +464,7 @@ export default function ProjectChatPage() {
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
-      toast.error("Failed to send message");
+      toast.error(error instanceof Error ? error.message : "Failed to send message");
     } finally {
       setIsSendingMessage(false);
     }
@@ -500,6 +518,12 @@ export default function ProjectChatPage() {
               </Button>
             </div>
             
+            {isProjectDisabled && (
+              <div className="p-2 bg-yellow-100/50 border border-yellow-200 rounded-md text-sm text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-500">
+                This project is {project?.status}. Chat functionality is limited to viewing existing conversations.
+              </div>
+            )}
+            
             <div className="flex flex-wrap gap-2">
               <Button 
                 variant="outline" 
@@ -517,6 +541,7 @@ export default function ProjectChatPage() {
                 variant="outline" 
                 size="sm"
                 onClick={() => setNewThreadDialogOpen(true)}
+                disabled={isProjectDisabled}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 New Chat
@@ -591,14 +616,18 @@ export default function ProjectChatPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
               <MessagesSquare className="h-10 w-10 mb-4 text-muted-foreground" />
-              <h3 className="font-medium mb-1">No chats yet</h3>
+              <h3 className="font-medium mb-2">No chats yet</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Create a new chat to start conversing with the project assistant
+                {isProjectDisabled 
+                  ? `This project is ${project?.status}. You cannot create new chats.` 
+                  : "Create a new chat to start conversing with the project assistant"}
               </p>
-              <Button onClick={() => setNewThreadDialogOpen(true)}>
-                <ListPlus className="h-4 w-4 mr-2" />
-                Create First Chat
-              </Button>
+              {!isProjectDisabled && (
+                <Button onClick={() => setNewThreadDialogOpen(true)}>
+                  <ListPlus className="h-4 w-4 mr-2" />
+                  Create First Chat
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -643,6 +672,13 @@ export default function ProjectChatPage() {
                 </div>
               </div>
 
+              {/* Project Status Banner */}
+              {isProjectDisabled && (
+                <div className="px-6 py-2 bg-yellow-100 border-b border-yellow-300 text-yellow-800 dark:bg-yellow-900/50 dark:border-yellow-800/50 dark:text-yellow-500 text-sm">
+                  <strong>Notice:</strong> This project is {project?.status}. You can view messages but cannot send new ones.
+                </div>
+              )}
+
               {/* Messages Area */}
               <div 
                 className="flex-1 overflow-y-auto p-4 space-y-4" 
@@ -682,7 +718,9 @@ export default function ProjectChatPage() {
                     <MessagesSquare className="h-10 w-10 mb-4 text-muted-foreground" />
                     <h3 className="font-medium mb-2">No messages yet</h3>
                     <p className="text-sm text-muted-foreground">
-                      Start a conversation by sending a message
+                      {isProjectDisabled 
+                        ? "This thread doesn't have any messages."
+                        : "Start a conversation by sending a message"}
                     </p>
                   </div>
                 )}
@@ -703,28 +741,34 @@ export default function ProjectChatPage() {
 
               {/* Message Input */}
               <div className="p-4 border-t">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    sendMessage();
-                  }}
-                  className="flex items-center space-x-2"
-                >
-                  <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    disabled={isSendingMessage || !!currentRun}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!newMessage.trim() || isSendingMessage || !!currentRun}
+                {isProjectDisabled ? (
+                  <div className="p-3 bg-muted rounded-md text-muted-foreground text-center">
+                    This project is {project?.status}. Creating new messages is disabled.
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      sendMessage();
+                    }}
+                    className="flex items-center space-x-2"
                   >
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                    Send
-                  </Button>
-                </form>
+                    <Input
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Type your message..."
+                      disabled={isSendingMessage || !!currentRun}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!newMessage.trim() || isSendingMessage || !!currentRun}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      Send
+                    </Button>
+                  </form>
+                )}
                 {currentRun && (
                   <div className="text-xs text-muted-foreground mt-2">
                     Assistant is {currentRun.status}...
@@ -737,12 +781,16 @@ export default function ProjectChatPage() {
               <MessagesSquare className="h-16 w-16 mb-4 text-muted-foreground" />
               <h3 className="text-xl font-medium mb-2">No chat selected</h3>
               <p className="text-muted-foreground mb-6">
-                Select an existing chat or create a new one to start a conversation
+                {isProjectDisabled
+                  ? `This project is ${project?.status}. You can only view existing chats.`
+                  : "Select an existing chat or create a new one to start a conversation"}
               </p>
-              <Button onClick={() => setNewThreadDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Chat
-              </Button>
+              {!isProjectDisabled && (
+                <Button onClick={() => setNewThreadDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Chat
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -753,6 +801,11 @@ export default function ProjectChatPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Chat</DialogTitle>
+            {isProjectDisabled && (
+              <div className="mt-2 p-2 bg-destructive/10 text-destructive rounded-md text-sm">
+                Chat creation is disabled for archived and completed projects.
+              </div>
+            )}
           </DialogHeader>
           <form
             onSubmit={(e) => {
@@ -766,6 +819,7 @@ export default function ProjectChatPage() {
                 onChange={(e) => setNewThreadTitle(e.target.value)}
                 placeholder="Chat Title (optional)"
                 className="w-full"
+                disabled={isProjectDisabled}
               />
             </div>
             <DialogFooter>
@@ -776,7 +830,7 @@ export default function ProjectChatPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Create</Button>
+              <Button type="submit" disabled={isProjectDisabled}>Create</Button>
             </DialogFooter>
           </form>
         </DialogContent>

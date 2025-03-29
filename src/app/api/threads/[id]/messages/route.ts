@@ -5,6 +5,7 @@ import { ChatService } from '@/lib/services/chat-service';
 import { hasThreadAccess } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 import { ZodError, z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
 // Schema for sending a message
 const sendMessageSchema = z.object({
@@ -38,6 +39,27 @@ export async function POST(
     if (!hasAccess) {
       console.log(`[API] User ${userId} does not have access to thread ${threadId}`);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Check if the project is archived or completed
+    const thread = await prisma.thread.findUnique({
+      where: { id: threadId },
+      include: {
+        project: {
+          select: { status: true }
+        }
+      }
+    });
+
+    if (!thread) {
+      return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+    }
+
+    if (thread.project?.status === 'archived' || thread.project?.status === 'completed') {
+      return NextResponse.json(
+        { error: 'Cannot send messages in archived or completed projects' },
+        { status: 403 }
+      );
     }
 
     // Parse and validate request body

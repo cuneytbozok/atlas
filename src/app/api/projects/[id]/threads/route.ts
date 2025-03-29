@@ -5,6 +5,7 @@ import { ChatService } from '@/lib/services/chat-service';
 import { hasProjectAccess } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 import { ZodError, z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
 // Schema for creating a thread
 const createThreadSchema = z.object({
@@ -73,6 +74,23 @@ export async function POST(
     const hasAccess = await hasProjectAccess(projectId, userId);
     if (!hasAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Check if project is archived or completed
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { status: true }
+    });
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    if (project.status === 'archived' || project.status === 'completed') {
+      return NextResponse.json(
+        { error: 'Cannot create new threads for archived or completed projects' },
+        { status: 403 }
+      );
     }
 
     // Parse and validate request body
