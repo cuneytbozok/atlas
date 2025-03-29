@@ -112,6 +112,11 @@ model Project {
   vectorStore      VectorStore?     @relation(fields: [vectorStoreId], references: [id])
   assistantId      String?
   assistant        Assistant?       @relation("ProjectAssistant", fields: [assistantId], references: [id])
+  
+  // Token usage fields
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
 
   @@index([createdById])
   @@index([vectorStoreId])
@@ -173,6 +178,11 @@ model Thread {
   messages         Message[]
   assistant        Assistant?        @relation(fields: [assistantId], references: [id])
   project          Project?          @relation(fields: [projectId], references: [id])
+  
+  // Token usage fields
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
 
   @@index([projectId])
   @@index([assistantId])
@@ -188,6 +198,12 @@ model Message {
   createdAt        DateTime          @default(now())
   fileAssociations FileAssociation[] @relation("AssistantFiles")
   thread           Thread            @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  
+  // Run and token usage fields
+  runId            String?           @unique
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
 
   @@index([threadId])
   @@index([openaiMessageId])

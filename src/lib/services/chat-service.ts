@@ -347,7 +347,10 @@ export class ChatService {
       console.log(`Checking run status for thread ${threadId}, run ${runId}`);
       
       const thread = await prisma.thread.findUnique({
-        where: { id: threadId }
+        where: { id: threadId },
+        include: {
+          project: true
+        }
       });
 
       if (!thread?.openaiThreadId) {
@@ -367,11 +370,89 @@ export class ChatService {
 
       let newMessages: any[] = [];
 
-      // If the run is completed, get any new messages
+      // If the run is completed, get any new messages and update token usage
       if (run.status === 'completed') {
         console.log(`Run ${runId} is completed, fetching new messages`);
         
-        // Instead of just getting the last message, let's get the count of all messages we have
+        // Extract token usage from the run
+        const usage = run.usage;
+        if (usage) {
+          console.log(`Run token usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);
+          
+          // Find the user message associated with this run
+          const userMessage = await prisma.message.findFirst({
+            where: {
+              threadId,
+              role: 'user'
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          });
+          
+          if (userMessage) {
+            // Since we now have the Prisma client generated with our new schema,
+            // we can use type assertions to help TypeScript understand our structure
+            await prisma.message.update({
+              where: { id: userMessage.id },
+              data: {
+                // Cast to any to bypass TypeScript errors until Prisma types are regenerated
+                runId: runId,
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+                totalTokens: usage.total_tokens
+              } as any
+            });
+            console.log(`Updated user message ${userMessage.id} with run token usage`);
+          } else {
+            console.log(`No matching user message found for run ${runId}`);
+          }
+          
+          // Cast thread to any to access the new fields
+          const threadAny = thread as any;
+          
+          // Update thread token usage (accumulating tokens)
+          const threadPromptTokens = threadAny.promptTokens || 0;
+          const threadCompletionTokens = threadAny.completionTokens || 0;
+          const threadTotalTokens = threadAny.totalTokens || 0;
+          
+          await prisma.thread.update({
+            where: { id: threadId },
+            data: {
+              updatedAt: new Date(),
+              // Cast to any to bypass TypeScript errors until Prisma types are regenerated
+              promptTokens: threadPromptTokens + usage.prompt_tokens,
+              completionTokens: threadCompletionTokens + usage.completion_tokens,
+              totalTokens: threadTotalTokens + usage.total_tokens
+            } as any
+          });
+          console.log(`Updated thread ${threadId} with accumulated token usage`);
+          
+          // If thread belongs to a project, update project token usage as well
+          if (thread.projectId && thread.project) {
+            // Cast project to any to access the new fields
+            const projectAny = thread.project as any;
+            
+            const projectPromptTokens = projectAny.promptTokens || 0;
+            const projectCompletionTokens = projectAny.completionTokens || 0;
+            const projectTotalTokens = projectAny.totalTokens || 0;
+            
+            await prisma.project.update({
+              where: { id: thread.projectId },
+              data: {
+                // Cast to any to bypass TypeScript errors until Prisma types are regenerated
+                promptTokens: projectPromptTokens + usage.prompt_tokens,
+                completionTokens: projectCompletionTokens + usage.completion_tokens,
+                totalTokens: projectTotalTokens + usage.total_tokens
+              } as any
+            });
+            console.log(`Updated project ${thread.projectId} with accumulated token usage`);
+          }
+        } else {
+          console.log(`No usage information available for run ${runId}`);
+        }
+        
+        // Existing code to handle fetching messages
         const existingMessagesCount = await prisma.message.count({
           where: { threadId }
         });
@@ -426,18 +507,14 @@ export class ChatService {
                   threadId,
                   role: 'assistant',
                   content: textContent,
-                  openaiMessageId: latestAssistantMessage.id
-                }
+                  openaiMessageId: latestAssistantMessage.id,
+                  // Use type assertion for new fields
+                  runId
+                } as any
               });
               console.log(`Created message in DB with id ${newMessage.id}`);
   
               newMessages.push(newMessage);
-              
-              // Update thread's updatedAt
-              await prisma.thread.update({
-                where: { id: threadId },
-                data: { updatedAt: new Date() }
-              });
             } else {
               console.log(`No text content found in assistant message, skipping`);
             }

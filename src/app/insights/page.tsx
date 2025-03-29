@@ -77,16 +77,60 @@ interface OpenAIUsageData {
   mockReason?: string;
 }
 
+// Define types for our token usage data
+interface ProjectTokenUsage {
+  id: string;
+  name: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface UserTokenUsage {
+  id: string;
+  name: string | null;
+  email: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface DailyTokenUsage {
+  date: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface TokenUsageStats {
+  projectStats: ProjectTokenUsage[];
+  userStats: UserTokenUsage[];
+  dailyStats: DailyTokenUsage[];
+  totalUsage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  tokenFieldsExist?: boolean;
+}
+
 export default function InsightsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, hasRole } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [openAIData, setOpenAIData] = useState<OpenAIUsageData | null>(null);
+  const [tokenUsageData, setTokenUsageData] = useState<TokenUsageStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOpenAIDataLoading, setIsOpenAIDataLoading] = useState(true);
+  const [isTokenUsageLoading, setIsTokenUsageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openAIError, setOpenAIError] = useState<string | null>(null);
+  const [tokenUsageError, setTokenUsageError] = useState<string | null>(null);
   
   // Check if user is admin
   const isAdmin = hasRole("ADMIN");
@@ -102,7 +146,17 @@ export default function InsightsPage() {
   const startParam = searchParams?.get("startDate");
   const endParam = searchParams?.get("endDate");
   
+  // This is the date range in the calendar (not yet applied)
   const [dateRange, setDateRange] = useState<{
+    startDate: Date;
+    endDate: Date;
+  }>({
+    startDate: startParam ? new Date(startParam) : subDays(new Date(), 7),
+    endDate: endParam ? new Date(endParam) : new Date(),
+  });
+  
+  // This is the applied date range that we'll use for data fetching
+  const [appliedDateRange, setAppliedDateRange] = useState<{
     startDate: Date;
     endDate: Date;
   }>({
@@ -112,6 +166,9 @@ export default function InsightsPage() {
   
   // Date picker state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  
+  // State to track which date the user is selecting (start or end)
+  const [selectionMode, setSelectionMode] = useState<'start' | 'end' | 'single'>('start');
 
   // Fetch analytics data
   useEffect(() => {
@@ -123,8 +180,8 @@ export default function InsightsPage() {
         setIsLoading(true);
         
         // Format dates for API request
-        const startDateStr = format(dateRange.startDate, "yyyy-MM-dd");
-        const endDateStr = format(dateRange.endDate, "yyyy-MM-dd");
+        const startDateStr = format(appliedDateRange.startDate, "yyyy-MM-dd");
+        const endDateStr = format(appliedDateRange.endDate, "yyyy-MM-dd");
         
         const response = await fetch(
           `/api/analytics?startDate=${startDateStr}&endDate=${endDateStr}`
@@ -156,7 +213,7 @@ export default function InsightsPage() {
     };
     
     fetchData();
-  }, [dateRange.startDate, dateRange.endDate, isAdmin]);
+  }, [appliedDateRange.startDate, appliedDateRange.endDate, isAdmin]);
   
   // Fetch OpenAI usage data
   useEffect(() => {
@@ -168,8 +225,17 @@ export default function InsightsPage() {
         setIsOpenAIDataLoading(true);
         
         // Format dates for API request
-        const startDateStr = format(dateRange.startDate, "yyyy-MM-dd");
-        const endDateStr = format(dateRange.endDate, "yyyy-MM-dd");
+        const startDateStr = format(appliedDateRange.startDate, "yyyy-MM-dd");
+        let endDateStr = format(appliedDateRange.endDate, "yyyy-MM-dd");
+        
+        // If it's a single day selection, add 1 to the end date to ensure we get data
+        const isOneDay = appliedDateRange.startDate.getTime() === appliedDateRange.endDate.getTime();
+        if (isOneDay) {
+          // Clone the date and add 1 day for the API call
+          const nextDay = new Date(appliedDateRange.endDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          endDateStr = format(nextDay, "yyyy-MM-dd");
+        }
         
         const response = await fetch(
           `/api/analytics/openai-usage?startDate=${startDateStr}&endDate=${endDateStr}`
@@ -213,7 +279,68 @@ export default function InsightsPage() {
     };
     
     fetchOpenAIData();
-  }, [dateRange.startDate, dateRange.endDate, isAdmin]);
+  }, [appliedDateRange.startDate, appliedDateRange.endDate, isAdmin]);
+  
+  // Fetch Token Usage data from database
+  useEffect(() => {
+    // Skip fetching if not admin
+    if (!isAdmin) return;
+    
+    const fetchTokenUsageData = async () => {
+      try {
+        setIsTokenUsageLoading(true);
+        
+        // Format dates for API request
+        const startDateStr = format(appliedDateRange.startDate, "yyyy-MM-dd");
+        let endDateStr = format(appliedDateRange.endDate, "yyyy-MM-dd");
+        
+        // If it's a single day selection, add 1 to the end date to ensure we get data
+        const isOneDay = appliedDateRange.startDate.getTime() === appliedDateRange.endDate.getTime();
+        if (isOneDay) {
+          // Clone the date and add 1 day for the API call
+          const nextDay = new Date(appliedDateRange.endDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          endDateStr = format(nextDay, "yyyy-MM-dd");
+        }
+        
+        const response = await fetch(
+          `/api/analytics/token-usage-stats?startDate=${startDateStr}&endDate=${endDateStr}`
+        );
+        
+        // Handle different status codes
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          const errorMessage = errorData?.message || `Error: HTTP ${response.status}`;
+          
+          if (response.status === 403) {
+            throw new Error(`Access denied: ${errorMessage}`);
+          } else if (response.status === 401) {
+            throw new Error(`Authentication required: ${errorMessage}`);
+          } else {
+            throw new Error(`Error fetching token usage data: ${errorMessage}`);
+          }
+        }
+        
+        const tokenUsageStats = await response.json();
+        
+        // Check if we received valid token usage data
+        if (!tokenUsageStats || typeof tokenUsageStats !== 'object') {
+          console.warn("Received invalid token usage data format:", tokenUsageStats);
+          throw new Error("Invalid data format received from token usage API");
+        }
+        
+        setTokenUsageData(tokenUsageStats);
+        setTokenUsageError(null);
+      } catch (err: any) {
+        console.error("Failed to fetch token usage data:", err);
+        setTokenUsageError(err.message || "Failed to load token usage data. Please try again later.");
+      } finally {
+        setIsTokenUsageLoading(false);
+      }
+    };
+    
+    fetchTokenUsageData();
+  }, [appliedDateRange.startDate, appliedDateRange.endDate, isAdmin]);
   
   // Don't render page content for non-admin users
   if (authLoading) {
@@ -256,11 +383,22 @@ export default function InsightsPage() {
     
     router.push(`/insights?${params.toString()}`);
     
+    // Update both date ranges when applying - this is important
     setDateRange({ startDate, endDate });
-    // Only close the calendar when we have a complete range
-    if (startDate && endDate) {
-      setIsCalendarOpen(false);
-    }
+    setAppliedDateRange({ startDate, endDate });
+    setIsCalendarOpen(false);  // Close calendar after applying range
+  };
+  
+  // Function to handle single day selection
+  const handleSingleDaySelect = (date: Date) => {
+    updateDateRange(date, date);
+  };
+  
+  // Function to handle the "Last 7 Days" button click
+  const handleLast7Days = () => {
+    const end = new Date();
+    const start = subDays(end, 7);
+    setDateRange({ startDate: start, endDate: end });
   };
 
   return (
@@ -274,68 +412,176 @@ export default function InsightsPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-[300px] justify-start text-left font-normal">
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(dateRange.startDate, "PPP")} - {format(dateRange.endDate, "PPP")}
+                {appliedDateRange.startDate.getTime() === appliedDateRange.endDate.getTime() 
+                  ? format(appliedDateRange.startDate, "PPP") 
+                  : `${format(appliedDateRange.startDate, "PPP")} - ${format(appliedDateRange.endDate, "PPP")}`}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
-              {/* Add clear instructions about the date picker */}
+              {/* Add tabs for date selection mode */}
               <div className="p-3 border-b border-muted">
-                <div className="text-sm font-medium text-center">
-                  Select date range
+                <div className="flex justify-center mb-2">
+                  <div className="inline-flex rounded-md shadow-sm" role="group">
+                    <button 
+                      type="button" 
+                      className={`px-4 py-2 text-xs font-medium rounded-l-lg ${selectionMode === 'single' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-secondary hover:bg-secondary/80'}`}
+                      onClick={() => setSelectionMode('single')}
+                    >
+                      Single Day
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`px-4 py-2 text-xs font-medium ${selectionMode === 'start' || selectionMode === 'end' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-secondary hover:bg-secondary/80'}`}
+                      onClick={() => setSelectionMode('start')}
+                    >
+                      Date Range
+                    </button>
+                  </div>
                 </div>
+                
+                {/* Instructions based on selection mode */}
                 <div className="text-xs text-muted-foreground text-center mt-1">
-                  {dateRange.startDate && !dateRange.endDate ? 
-                    `${format(dateRange.startDate, "PPP")} - Click a second date to complete selection` 
-                    : "Click two dates to select a range"}
-                </div>
-              </div>
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange.startDate}
-                selected={{
-                  from: dateRange.startDate,
-                  to: dateRange.endDate,
-                }}
-                onSelect={(range) => {
-                  if (range?.from) {
-                    const newEndDate = range.to || range.from;
-                    
-                    // Always update the internal state to show progress
-                    setDateRange({
-                      startDate: range.from,
-                      endDate: newEndDate,
-                    });
-                    
-                    // Only update URL and close calendar when a complete range is selected
-                    if (range.to) {
-                      updateDateRange(range.from, newEndDate);
-                    }
+                  {selectionMode === 'single' 
+                    ? "Select a single day for analysis"
+                    : selectionMode === 'start'
+                      ? <span className="font-medium text-primary">Select <strong>start</strong> date first</span>
+                      : <span className="font-medium text-primary">Now select <strong>end</strong> date</span>
                   }
-                }}
-                numberOfMonths={2}
-                disabled={(date) => date > new Date()}
-              />
-              <div className="p-3 border-t border-muted flex justify-end">
-                <Button 
-                  size="sm" 
-                  onClick={() => {
-                    if (dateRange.startDate && dateRange.endDate) {
-                      updateDateRange(dateRange.startDate, dateRange.endDate);
+                </div>
+                
+                {/* Show currently selected range */}
+                {(dateRange.startDate || dateRange.endDate) && (
+                  <div className="text-xs text-center mt-2 bg-muted p-1 rounded">
+                    <span className="font-medium">Current selection:</span>{" "}
+                    {dateRange.startDate && format(dateRange.startDate, "PPP")}
+                    {dateRange.endDate && dateRange.startDate !== dateRange.endDate && 
+                      ` - ${format(dateRange.endDate, "PPP")}`}
+                  </div>
+                )}
+              </div>
+              
+              {selectionMode === 'single' ? (
+                // Single day selection calendar
+                <Calendar
+                  initialFocus
+                  mode="single"
+                  defaultMonth={dateRange.startDate}
+                  selected={dateRange.startDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      // Only update the visual selection, not the applied range
+                      setDateRange({
+                        startDate: date,
+                        endDate: date,
+                      });
                     }
                   }}
-                  disabled={!dateRange.startDate || !dateRange.endDate}
+                  numberOfMonths={2}
+                  disabled={(date) => date > new Date()}
+                />
+              ) : (
+                // Range selection calendar
+                <Calendar
+                  initialFocus
+                  mode="single"
+                  defaultMonth={dateRange.startDate}
+                  selected={selectionMode === 'start' ? dateRange.startDate : dateRange.endDate}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    
+                    if (selectionMode === 'start') {
+                      // When selecting start date
+                      setDateRange(prev => ({
+                        ...prev,
+                        startDate: date,
+                        // If new start date is after current end date, update end date too
+                        endDate: date > prev.endDate ? date : prev.endDate,
+                      }));
+                      setSelectionMode('end');
+                    } else {
+                      // When selecting end date
+                      // If selected date is before start date, swap them
+                      if (date < dateRange.startDate) {
+                        setDateRange({
+                          startDate: date,
+                          endDate: dateRange.startDate,
+                        });
+                      } else {
+                        setDateRange(prev => ({
+                          ...prev,
+                          endDate: date,
+                        }));
+                      }
+                      // Go back to start mode for next selection
+                      setSelectionMode('start');
+                    }
+                  }}
+                  numberOfMonths={2}
+                  disabled={(date) => date > new Date()}
+                  // Highlight range
+                  modifiers={{
+                    selected: (date) => date.getTime() === dateRange.startDate.getTime() || 
+                                        date.getTime() === dateRange.endDate.getTime(),
+                    range_start: (date) => date.getTime() === dateRange.startDate.getTime(),
+                    range_end: (date) => date.getTime() === dateRange.endDate.getTime(),
+                    range_middle: (date) => 
+                      date > dateRange.startDate && date < dateRange.endDate,
+                  }}
+                  modifiersClassNames={{
+                    selected: 'bg-primary text-primary-foreground',
+                    range_start: 'rounded-l-md',
+                    range_end: 'rounded-r-md',
+                    range_middle: 'bg-primary/20',
+                  }}
+                />
+              )}
+              
+              <div className="p-3 border-t border-muted flex justify-between">
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={handleLast7Days}
                 >
-                  Apply Range
+                  Last 7 Days
                 </Button>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsCalendarOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      if (selectionMode === 'single') {
+                        handleSingleDaySelect(dateRange.startDate);
+                      } else {
+                        updateDateRange(dateRange.startDate, dateRange.endDate);
+                      }
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </div>
               </div>
             </PopoverContent>
           </Popover>
         </div>
         
         <Tabs defaultValue="analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="analytics">App Analytics</TabsTrigger>
+            <TabsTrigger value="tokens">Token Usage</TabsTrigger>
             <TabsTrigger value="cost">Cost Analytics</TabsTrigger>
           </TabsList>
           
@@ -464,6 +710,231 @@ export default function InsightsPage() {
                             <Bar 
                               dataKey="messageCount" 
                               name="Messages" 
+                              fill="#82ca9d" 
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="tokens" className="space-y-8">
+            {isTokenUsageLoading ? (
+              <div className="flex justify-center p-12">
+                <p className="text-lg">Loading token usage data...</p>
+              </div>
+            ) : tokenUsageError ? (
+              <div className="flex justify-center p-12">
+                <p className="text-red-500">{tokenUsageError}</p>
+              </div>
+            ) : !tokenUsageData ? (
+              <div className="flex justify-center p-12">
+                <p className="text-amber-600">No token usage data available for the selected period.</p>
+              </div>
+            ) : tokenUsageData.tokenFieldsExist === false ? (
+              <div className="flex justify-center p-12">
+                <div className="max-w-2xl">
+                  <p className="text-amber-600 text-lg mb-4">Token tracking is not yet enabled in the database.</p>
+                  <p className="text-muted-foreground mb-2">
+                    To enable token usage tracking, you need to add the necessary fields to your database schema.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Once tokens start being tracked in the database, they will appear in this dashboard.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Total Token Usage Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Total Token Usage</CardTitle>
+                    <CardDescription>
+                      Summary of token usage for all projects and users
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <div className="text-lg font-semibold">Prompt Tokens</div>
+                        <div className="text-3xl font-bold text-primary">
+                          {tokenUsageData.totalUsage.promptTokens.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Input tokens used for generating responses
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="text-lg font-semibold">Completion Tokens</div>
+                        <div className="text-3xl font-bold text-primary">
+                          {tokenUsageData.totalUsage.completionTokens.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Output tokens generated in responses
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="text-lg font-semibold">Total Tokens</div>
+                        <div className="text-3xl font-bold text-primary">
+                          {tokenUsageData.totalUsage.totalTokens.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Combined total of all tokens used
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Daily Token Usage Trend */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Daily Token Usage Trend</CardTitle>
+                    <CardDescription>
+                      Token usage distribution over time
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={getDailyTokenData(tokenUsageData)}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(value) => {
+                              const date = new Date(value);
+                              return format(date, "MMM dd");
+                            }}
+                          />
+                          <YAxis 
+                            tickFormatter={(value) => value.toLocaleString()}
+                          />
+                          <Tooltip 
+                            formatter={(value) => [Number(value).toLocaleString(), ""]}
+                            labelFormatter={(label) => format(new Date(label), "PPP")}
+                          />
+                          <Legend />
+                          <Area 
+                            type="monotone"
+                            dataKey="promptTokens"
+                            name="Prompt Tokens"
+                            stackId="1"
+                            stroke="#8884d8"
+                            fill="#8884d8"
+                            fillOpacity={0.6}
+                          />
+                          <Area 
+                            type="monotone"
+                            dataKey="completionTokens"
+                            name="Completion Tokens"
+                            stackId="1"
+                            stroke="#82ca9d"
+                            fill="#82ca9d"
+                            fillOpacity={0.6}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Project and User Token Usage */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Projects Token Usage */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Top Projects by Token Usage</CardTitle>
+                      <CardDescription>
+                        Projects with the highest token consumption
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={getProjectTokenData(tokenUsageData)}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            layout="vertical"
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
+                            <YAxis 
+                              dataKey="name" 
+                              type="category" 
+                              width={150}
+                              tickFormatter={(value) => 
+                                value.length > 20 ? `${value.substring(0, 20)}...` : value
+                              }
+                            />
+                            <Tooltip 
+                              formatter={(value) => [Number(value).toLocaleString(), ""]} 
+                            />
+                            <Legend />
+                            <Bar 
+                              dataKey="promptTokens" 
+                              name="Prompt Tokens" 
+                              stackId="a"
+                              fill="#8884d8" 
+                            />
+                            <Bar 
+                              dataKey="completionTokens" 
+                              name="Completion Tokens" 
+                              stackId="a"
+                              fill="#82ca9d" 
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Users Token Usage */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Top Users by Token Usage</CardTitle>
+                      <CardDescription>
+                        Users with the highest token consumption
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={getUserTokenData(tokenUsageData)}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            layout="vertical"
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
+                            <YAxis 
+                              dataKey="name" 
+                              type="category" 
+                              width={150}
+                              tickFormatter={(value) => 
+                                value.length > 20 ? `${value.substring(0, 20)}...` : value
+                              }
+                            />
+                            <Tooltip 
+                              formatter={(value) => [Number(value).toLocaleString(), ""]}
+                            />
+                            <Legend />
+                            <Bar 
+                              dataKey="promptTokens" 
+                              name="Prompt Tokens" 
+                              stackId="a"
+                              fill="#8884d8" 
+                            />
+                            <Bar 
+                              dataKey="completionTokens" 
+                              name="Completion Tokens" 
+                              stackId="a"
                               fill="#82ca9d" 
                             />
                           </BarChart>
@@ -819,6 +1290,19 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+// Helper function to format token counts into human-readable format
+function formatTokens(tokens: number): string {
+  if (tokens === 0) return '0';
+  
+  if (tokens >= 1000000) {
+    return `${(tokens / 1000000).toFixed(2)}M`;
+  } else if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(tokens >= 10000 ? 1 : 2)}K`;
+  } else {
+    return tokens.toString();
+  }
+}
+
 // Helper function to prepare completions token data for charts
 function getCompletionsTokenData(data: OpenAIUsageData | null) {
   if (!data) return [];
@@ -858,5 +1342,41 @@ function getVectorStoresData(data: OpenAIUsageData | null) {
   return data.vectorStores.daily.map(day => ({
     date: day.date,
     bytes: day.bytes || 0
+  }));
+}
+
+// Helper function to prepare token usage data by project for charts
+function getProjectTokenData(data: TokenUsageStats | null) {
+  if (!data) return [];
+  
+  return data.projectStats.map(project => ({
+    name: project.name,
+    promptTokens: project.promptTokens || 0,
+    completionTokens: project.completionTokens || 0,
+    totalTokens: project.totalTokens || 0,
+  })).slice(0, 10); // Limit to top 10 projects
+}
+
+// Helper function to prepare token usage data by user for charts
+function getUserTokenData(data: TokenUsageStats | null) {
+  if (!data) return [];
+  
+  return data.userStats.map(user => ({
+    name: user.name || user.email,
+    promptTokens: user.promptTokens || 0,
+    completionTokens: user.completionTokens || 0,
+    totalTokens: user.totalTokens || 0,
+  })).slice(0, 10); // Limit to top 10 users
+}
+
+// Helper function to prepare daily token usage data for charts
+function getDailyTokenData(data: TokenUsageStats | null) {
+  if (!data) return [];
+  
+  return data.dailyStats.map(day => ({
+    date: day.date,
+    promptTokens: day.promptTokens || 0,
+    completionTokens: day.completionTokens || 0,
+    totalTokens: day.totalTokens || 0,
   }));
 } 

@@ -84,6 +84,23 @@ To learn more about Next.js, take a look at the following resources:
 
 ATLAS uses PostgreSQL for data storage. See [DATABASE.md](./DATABASE.md) for details on the schema.
 
+## Enabling Token Usage Tracking
+
+Token usage tracking is enabled by default for new installations. If you're upgrading from an earlier version that doesn't have token tracking fields, you can add them by running:
+
+```bash
+# If using Docker:
+./run_token_fields_sql.sh
+
+# Or manually using psql:
+psql -U your_username -d your_database_name -a -f add_token_usage_fields.sql
+
+# Or using the prisma db execute command:
+npx prisma db execute --file add_token_usage_fields.sql
+```
+
+Once the fields are added, Atlas will automatically start tracking token usage for all messages. You can view token usage statistics in the Insights page under the "Token Usage" tab.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
