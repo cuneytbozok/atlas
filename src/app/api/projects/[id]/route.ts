@@ -164,6 +164,23 @@ export async function PATCH(
         projectManagerId: projectManagerId !== undefined ? projectManagerId : undefined,
       });
 
+      // Get the original project for tracking changes
+      const originalProject = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          name: true,
+          description: true,
+          status: true
+        }
+      });
+
+      if (!originalProject) {
+        return NextResponse.json(
+          { message: "Project not found" },
+          { status: 404 }
+        );
+      }
+
       // Update the project
       try {
         // First update the basic project details
@@ -202,6 +219,43 @@ export async function PATCH(
             }
           }
         });
+        
+        // Log activity for changed fields
+        if (name !== undefined && name !== originalProject.name) {
+          await prisma.activityLog.create({
+            data: {
+              userId: user.id,
+              action: 'UPDATE_PROJECT_NAME',
+              entityType: 'PROJECT',
+              entityId: projectId,
+              timestamp: new Date()
+            }
+          });
+        }
+        
+        if (description !== undefined && description !== originalProject.description) {
+          await prisma.activityLog.create({
+            data: {
+              userId: user.id,
+              action: 'UPDATE_PROJECT_DESCRIPTION',
+              entityType: 'PROJECT',
+              entityId: projectId,
+              timestamp: new Date()
+            }
+          });
+        }
+        
+        if (status !== undefined && status !== originalProject.status) {
+          await prisma.activityLog.create({
+            data: {
+              userId: user.id,
+              action: 'CHANGE_STATUS',
+              entityType: 'PROJECT',
+              entityId: projectId,
+              timestamp: new Date()
+            }
+          });
+        }
 
         // Handle project manager assignment if provided
         if (projectManagerId !== undefined) {
@@ -223,6 +277,17 @@ export async function PATCH(
                 await prisma.projectMember.update({
                   where: { id: currentProjectManager.id },
                   data: { roleId: userRole.id }
+                });
+                
+                // Log project manager removal activity
+                await prisma.activityLog.create({
+                  data: {
+                    userId: user.id,
+                    action: 'REMOVE_PROJECT_MANAGER',
+                    entityType: 'PROJECT',
+                    entityId: projectId,
+                    timestamp: new Date()
+                  }
                 });
               }
             }
@@ -257,6 +322,10 @@ export async function PATCH(
                 member.role.name === "PROJECT_MANAGER" && member.id !== memberToPromote.id
             );
 
+            // Check if there's an actual change in project manager
+            const isAlreadyProjectManager = memberToPromote.role.name === "PROJECT_MANAGER";
+            const projectManagerChanged = !isAlreadyProjectManager || currentProjectManager;
+
             // If there's a different current project manager, downgrade them
             if (currentProjectManager) {
               const userRole = await prisma.role.findFirst({
@@ -272,10 +341,25 @@ export async function PATCH(
             }
 
             // Promote the selected member to project manager
-            await prisma.projectMember.update({
-              where: { id: memberToPromote.id },
-              data: { roleId: projectManagerRole.id }
-            });
+            if (!isAlreadyProjectManager) {
+              await prisma.projectMember.update({
+                where: { id: memberToPromote.id },
+                data: { roleId: projectManagerRole.id }
+              });
+            }
+            
+            // Only log project manager assignment activity if something actually changed
+            if (projectManagerChanged) {
+              await prisma.activityLog.create({
+                data: {
+                  userId: user.id,
+                  action: 'ASSIGN_PROJECT_MANAGER',
+                  entityType: 'PROJECT',
+                  entityId: projectId,
+                  timestamp: new Date()
+                }
+              });
+            }
 
             // Ensure the user has the PROJECT_MANAGER role at the system level
             const hasProjectManagerRole = await prisma.userRole.findFirst({

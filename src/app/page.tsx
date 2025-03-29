@@ -37,6 +37,33 @@ interface Project {
 
 export default function Home() {
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
+  const [aiInteractionsCount, setAiInteractionsCount] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Fetch total AI interactions count
+  useEffect(() => {
+    const fetchAiInteractions = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/analytics/ai-interactions');
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAiInteractionsCount(data.total);
+        } else {
+          console.error('Failed to fetch AI interactions count');
+          setAiInteractionsCount(0);
+        }
+      } catch (error) {
+        console.error('Error fetching AI interactions:', error);
+        setAiInteractionsCount(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAiInteractions();
+  }, []);
   
   return (
     <ProtectedRoute>
@@ -76,6 +103,32 @@ export default function Home() {
               }
             />
           </div>
+          
+          {/* AI Interactions Card - Large Icon and Number */}
+          <Card className="overflow-hidden bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/20 dark:to-background">
+            <div className="p-8">
+              <div className="flex justify-between items-center">
+                <div className="bg-violet-100 dark:bg-violet-900/30 p-4 rounded-full">
+                  <LucideBrain className="h-16 w-16 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  {isLoading ? (
+                    <LucideLoader className="h-10 w-10 text-violet-600 dark:text-violet-400 animate-spin" />
+                  ) : (
+                    <span className="text-5xl font-bold text-violet-600 dark:text-violet-400">
+                      {aiInteractionsCount?.toLocaleString() || "0"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="mt-6">
+                <p className="text-xl font-medium text-violet-800 dark:text-violet-300">AI Interactions</p>
+                <p className="text-sm text-violet-600/70 dark:text-violet-400/70 mt-1">
+                  Total AI assistant interactions across all projects
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
       </MainLayout>
     </ProtectedRoute>

@@ -46,6 +46,10 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useProject } from "./layout";
+import { ProjectStats } from "@/components/project/project-stats";
+import { ProjectDescriptionCard } from "@/components/project/project-description-card";
+import { TeamMembersCard } from "@/components/project/team-members-card";
+import { ActivityTimeline } from "@/components/project/activity-timeline";
 
 interface ProjectMember {
   id: string;
@@ -175,12 +179,32 @@ export default function ProjectPage() {
   const [canManageFiles, setCanManageFiles] = useState(false);
   const [canEditProject, setCanEditProject] = useState(false);
   const [canDeleteProject, setCanDeleteProject] = useState(false);
+  const [documentsCount, setDocumentsCount] = useState(0);
   const [debugInfo, setDebugInfo] = useState<{
     assistant: { id: string, openaiId: string | null } | null;
     vectorStore: { id: string, openaiId: string | null } | null;
   }>({ assistant: null, vectorStore: null });
   const [isLoadingDebugInfo, setIsLoadingDebugInfo] = useState(false);
 
+  // Add effect to listen for custom file drop events from ProjectStats
+  useEffect(() => {
+    const handleFilesDroppedEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{files: FileList}>;
+      if (customEvent.detail && customEvent.detail.files) {
+        // Process the dropped files directly
+        const droppedFiles = Array.from(customEvent.detail.files);
+        handleFiles(droppedFiles);
+      }
+    };
+
+    // Add event listener for our custom event
+    window.addEventListener('filesdropped', handleFilesDroppedEvent);
+    
+    return () => {
+      window.removeEventListener('filesdropped', handleFilesDroppedEvent);
+    };
+  }, []);
+  
   // Add effect to scroll to ATLAS AI section when hash is present
   useEffect(() => {
     // Check if the URL has a hash and it's #atlas-ai
@@ -224,6 +248,25 @@ export default function ProjectPage() {
     }
   }, [project, user, hasRole]);
 
+  // Fetch document count
+  useEffect(() => {
+    const fetchDocumentCount = async () => {
+      if (projectId) {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/files`);
+          if (response.ok) {
+            const files = await response.json();
+            setDocumentsCount(Array.isArray(files) ? files.length : 0);
+          }
+        } catch (error) {
+          console.error('Error fetching document count:', error);
+        }
+      }
+    };
+    
+    fetchDocumentCount();
+  }, [projectId]);
+
   // File upload handlers
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -259,6 +302,16 @@ export default function ProjectPage() {
       e.target.value = '';
     }
   };
+
+  const handleDropFromStats = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      handleFiles(droppedFiles);
+    }
+  }, []);
 
   const handleFiles = (newFiles: File[]) => {
     const uploads = newFiles.map(file => ({
@@ -339,8 +392,11 @@ export default function ProjectPage() {
         description: `${file.name} has been uploaded successfully`
       });
       
-      // Refresh project data to include the new file
-      refreshProject();
+      // Update document count without refreshing the page
+      updateDocumentCount();
+      
+      // Log the file upload activity
+      logFileUploadActivity(data.id, file.name);
       
       // Remove successfully uploaded file from display after a delay
       setTimeout(() => {
@@ -370,8 +426,62 @@ export default function ProjectPage() {
     }
   };
 
+  // Function to update document count without refreshing the page
+  const updateDocumentCount = async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/files`);
+      if (response.ok) {
+        const files = await response.json();
+        setDocumentsCount(Array.isArray(files) ? files.length : 0);
+      }
+    } catch (error) {
+      console.error('Error updating document count:', error);
+    }
+  };
+
+  // Function to log file upload activity
+  const logFileUploadActivity = async (fileId: string, fileName: string) => {
+    try {
+      // This would typically be handled by the server, but we can make an API call
+      // to ensure the activity is logged if needed
+      console.log(`Logging file upload activity for file: ${fileName} (${fileId})`);
+      // You might need to implement this API endpoint
+      // await fetch(`/api/projects/${projectId}/activity/log`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({
+      //     action: 'UPLOAD_FILE',
+      //     entityType: 'FILE',
+      //     entityId: fileId,
+      //   }),
+      // });
+    } catch (error) {
+      console.error('Error logging file upload activity:', error);
+    }
+  };
+
   const handleRemoveFile = (fileId: string) => {
     setFileUploads(prev => prev.filter(item => item.id !== fileId));
+    
+    // Also update document count if this was a successful upload that's being removed
+    const fileBeingRemoved = fileUploads.find(item => item.id === fileId);
+    if (fileBeingRemoved && fileBeingRemoved.status === 'complete') {
+      // Refresh document count
+      fetch(`/api/projects/${projectId}/files`)
+        .then(response => {
+          if (response.ok) return response.json();
+          return [];
+        })
+        .then(files => {
+          setDocumentsCount(Array.isArray(files) ? files.length : 0);
+        })
+        .catch(error => {
+          console.error('Error updating document count:', error);
+        });
+    }
+    
     toast.info("File removed");
   };
 
@@ -594,227 +704,51 @@ export default function ProjectPage() {
 
       <Separator />
 
-      <div className="grid gap-6 md:grid-cols-3">
-    <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-          <LucideFileText className="h-5 w-5 text-muted-foreground" />
-            </div>
-        <CardTitle className="text-base">Project Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-            <p className="mt-1">{safeCharAt(project.status, 0) + (project.status.slice(1) || '')}</p>
-              </div>
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Created By</h3>
-            <p className="mt-1">{project.createdBy.name || project.createdBy.email}</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
-            <p className="mt-1">{formattedCreatedDate}</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
-            <p className="mt-1">{formattedUpdatedDate}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Project Statistics */}
+      <ProjectStats 
+        projectId={project.id} 
+        documentsCount={documentsCount} 
+        onUploadClick={() => document.getElementById('file-upload')?.click()}
+        fileUploads={fileUploads}
+        handleRemoveFile={handleRemoveFile}
+      />
+      
+      {/* Hidden file upload input */}
+      <input
+        id="file-upload"
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
 
-    <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-              <LucideUsers className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <CardTitle className="text-base">Team Members</CardTitle>
-          </CardHeader>
-          <CardContent>
-        <div className="space-y-3">
-          {(() => {
-            const projectManager = findProjectManager(project as Project);
-            return projectManager && (
-              <div className="border-b pb-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      {getInitials(projectManager)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium">{getDisplayName(projectManager)}</span>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Project Manager</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{getEmail(projectManager)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          
-          {project.members && Array.isArray(project.members) && project.members.length > 0 ? (
-            <>
-              {(() => {
-                const projectManager = findProjectManager(project as Project);
-                return project.members
-                  .filter(member => !projectManager || member.id !== projectManager.id)
-                  .slice(0, 3)
-                  .map((member, index) => (
-                    <div key={member.id || index} className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          {getInitials(member)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="text-sm">{getDisplayName(member)}</span>
-                        <span className="text-xs text-muted-foreground">{getEmail(member)}</span>
-                      </div>
-                    </div>
-                  ));
-              })()}
-              
-              {(() => {
-                const projectManager = findProjectManager(project as Project);
-                const filteredMembers = project.members.filter(member => !projectManager || member.id !== projectManager.id);
-                return filteredMembers.length > 3 && (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    +{filteredMembers.length - 3} more team members
-                  </div>
-                );
-              })()}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No team members yet</p>
-          )}
-          
-          <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full mt-2">
-                <LucideUsers className="h-4 w-4 mr-2" />
-                Manage Team
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <ManageTeamForm 
-                project={{
-                  id: project.id,
-                  name: project.name,
-                  members: project.members,
-                  projectManager: findProjectManager(project as Project)
-                }} 
-                onMemberAdded={handleMemberAdded}
-                onMemberRemoved={handleMemberRemoved}
-                onClose={() => setIsManageTeamDialogOpen(false)} 
-              />
-            </DialogContent>
-          </Dialog>
-            </div>
-          </CardContent>
-        </Card>
+      <div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="hidden"
+      />
 
-    <Card className="h-auto">
-          <CardHeader className="pb-2">
-            <div className="mb-2">
-          <LucideUpload className="h-5 w-5 text-muted-foreground" />
-            </div>
-        <CardTitle className="text-base">Files</CardTitle>
-          </CardHeader>
-          <CardContent>
-        <div 
-          className={`border-2 border-dashed rounded-lg p-3 text-center mb-3 transition-colors ${
-            isDragging 
-              ? "border-primary bg-primary/5" 
-              : "border-muted-foreground/20 hover:border-primary/50"
-          }`}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        >
-          <LucideUpload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground mb-1">
-            Drag and drop files here or
-          </p>
-          <div>
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('file-upload')?.click()}>
-                Browse Files
-              </Button>
-              <input
-                id="file-upload"
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileInputChange}
-              />
-            </label>
-          </div>
-        </div>
+      {/* Project Information Section */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Project Description Card */}
+        <ProjectDescriptionCard 
+          description={project.description} 
+          projectManager={findProjectManager(project as Project)} 
+        />
 
-        {fileUploads.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {fileUploads.map(file => (
-              <div key={file.id} className="border rounded-md p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2 truncate">
-                    <LucideFile className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{file.name}</span>
-                  </div>
-                  {canManageFiles && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6" 
-                      onClick={() => handleRemoveFile(file.id)}
-                    >
-                      <LucideTrash className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="w-full">
-                  <Progress value={file.progress} className="h-1" />
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
-                  </span>
-                  <span className={`text-xs ${file.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {file.status === 'uploading' 
-                      ? `${file.progress}%` 
-                      : file.status === 'complete' 
-                        ? 'Complete' 
-                        : 'Error'}
-                  </span>
-                </div>
-                {file.status === 'error' && file.error && (
-                  <div className="mt-1 text-xs text-destructive">
-                    {file.error}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        
-        {/* Add a button to view all files */}
-        <div className="mt-4">
-          <Button variant="outline" asChild className="w-full">
-            <Link href={`/projects/${projectId}/documents`} className="flex items-center justify-center gap-2">
-              <LucideFileText className="h-4 w-4" />
-              View All Files
-            </Link>
-          </Button>
-        </div>
-          </CardContent>
-        </Card>
+        {/* Team Members Card */}
+        <TeamMembersCard 
+          members={project.members} 
+          projectManager={findProjectManager(project as Project)}
+          onManageTeam={() => setIsManageTeamDialogOpen(true)}
+        />
       </div>
 
-    {/* Remove the "Ask ATLAS" section and replace with a direct link to chat */}
-    <div className="mt-6 flex flex-col md:flex-row gap-4">
+      {/* Recent Activity Timeline */}
+      <ActivityTimeline projectId={project.id} />
+
       {/* Display AI resources setup section if they're missing */}
       {((!project.vectorStoreId || !project.assistantId) && hasRole("ADMIN")) && (
         <Card className="md:w-full mb-4" id="atlas-ai">
@@ -919,48 +853,73 @@ export default function ProjectPage() {
         </Card>
       )}
 
-      <Card className="md:w-1/2">
-        <CardHeader className="pb-2">
-          <div className="mb-2">
-            <LucideMessageSquare className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <CardTitle className="text-base">Chat with ATLAS</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm mb-4">
-            Chat with your AI assistant about this project and its documents
-          </div>
-          
-          <Button asChild className="w-full">
-            <Link href={`/projects/${project.id}/chat`} className="flex items-center justify-center gap-2">
-              <LucideMessageSquare className="h-4 w-4" />
-              Open Chat
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-      
-      <Card className="md:w-1/2">
-        <CardHeader className="pb-2">
-          <div className="mb-2">
-            <LucideFileText className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <CardTitle className="text-base">Documents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm mb-4">
-            Access and manage all documents related to this project
-          </div>
-          
-          <Button asChild className="w-full">
-            <Link href={`/projects/${project.id}/documents`} className="flex items-center justify-center gap-2">
-              <LucideFileText className="h-4 w-4" />
-              View Documents
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+      {/* Edit Project Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Make changes to your project. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <EditProjectForm 
+            project={project as Project} 
+            onSuccess={(updatedProject) => {
+              setIsEditDialogOpen(false);
+              handleProjectUpdated();
+            }}
+            onCancel={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Team Dialog */}
+      <Dialog open={isManageTeamDialogOpen} onOpenChange={setIsManageTeamDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <ManageTeamForm 
+            project={{
+              id: project.id,
+              name: project.name,
+              members: project.members,
+              projectManager: findProjectManager(project as Project)
+            }} 
+            onMemberAdded={handleMemberAdded}
+            onMemberRemoved={handleMemberRemoved}
+            onClose={() => setIsManageTeamDialogOpen(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+
+    {/* Add the enhanced deletion dialog */}
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Project</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this project? This action cannot be undone and will permanently delete the project, all files, and conversation history.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={(e) => {
+              e.preventDefault();
+              handleDeleteProject();
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting ? (
+              <>
+                <LucideLoader className="mr-2 h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete Project'
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     {/* Add the enhanced deletion progress dialog */}
     <Dialog open={isDeleteInProgress} onOpenChange={(open) => {
@@ -1006,155 +965,72 @@ export default function ProjectPage() {
                     </div>
                   )}
                   <p className={`text-sm ${
-                    step.status === 'completed' 
-                      ? 'text-muted-foreground line-through' 
-                      : step.status === 'error' 
-                        ? 'text-destructive' 
-                        : step.status === 'inProgress' 
-                          ? 'text-primary' 
-                          : 'text-muted-foreground'
-                  }`}>{step.label}</p>
+                    step.status === 'error' ? 'text-destructive' : 
+                    step.status === 'completed' ? 'text-success' : 
+                    step.status === 'inProgress' ? 'text-primary' : 
+                    'text-muted-foreground'
+                  }`}>
+                    {step.label}
+                  </p>
                 </div>
               ))}
             </div>
-            
-            <p className="text-sm text-muted-foreground">
-              Deleting AI resources from OpenAI can take some time. Please do not close this window.
-            </p>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Debug dialog */}
+    <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>AI Resources Debug</DialogTitle>
+          <DialogDescription>
+            Technical details about the AI resources for this project.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {isLoadingDebugInfo ? (
+            <div className="flex justify-center">
+              <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Assistant</h3>
+                {debugInfo.assistant ? (
+                  <div className="rounded-md bg-muted p-3">
+                    <p className="text-xs font-mono mb-1">DB ID: {debugInfo.assistant.id}</p>
+                    <p className="text-xs font-mono">OpenAI ID: {debugInfo.assistant.openaiId || 'Not set'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No assistant configured</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Vector Store</h3>
+                {debugInfo.vectorStore ? (
+                  <div className="rounded-md bg-muted p-3">
+                    <p className="text-xs font-mono mb-1">DB ID: {debugInfo.vectorStore.id}</p>
+                    <p className="text-xs font-mono">OpenAI ID: {debugInfo.vectorStore.openaiId || 'Not set'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No vector store configured</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <DialogFooter>
-          <Button 
-            onClick={() => setIsDeleteInProgress(false)}
-            disabled={isDeleting}
-            variant={isDeleting ? "outline" : "default"}
-          >
-            {isDeleting ? "Deleting..." : "Close"}
+          <Button variant="outline" onClick={() => setIsDebugModalOpen(false)}>
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    {/* Dialogs */}
-    {canEditProject && (
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[625px]">
-          <EditProjectForm 
-            project={project as Project} 
-            onSuccess={handleProjectUpdated} 
-            onCancel={() => setIsEditDialogOpen(false)} 
-          />
-        </DialogContent>
-      </Dialog>
-    )}
-
-    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the project
-            and all associated data.
-          </AlertDialogDescription>
-          <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-            <p className="font-medium mb-2">The following will be deleted:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Project data and settings</li>
-              <li>Team member associations</li>
-              <li>All chat history and interactions</li>
-              {project.vectorStoreId && (
-                <li>
-                  Associated vector store{" "}
-                  <span className="text-xs opacity-70">(used for file search)</span>
-                </li>
-              )}
-              {project.assistantId && (
-                <li>
-                  Associated assistant{" "}
-                  <span className="text-xs opacity-70">(AI chat capabilities)</span>
-                </li>
-              )}
-            </ul>
-          </div>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction 
-            onClick={handleDeleteProject}
-            disabled={isDeleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-    
-    {hasRole("ADMIN") && (
-      <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline">
-            <LucideSettings className="h-4 w-4 mr-2" />
-            Debug Info
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Project Debug Information</DialogTitle>
-            <DialogDescription>
-              Technical details for this project's AI resources
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            {isLoadingDebugInfo ? (
-              <div className="flex items-center justify-center py-4">
-                <LucideLoader className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Database IDs</h3>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Vector Store ID:</span>
-                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                        {project.vectorStoreId || "Not available"}
-                      </code>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Assistant ID:</span>
-                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                        {project.assistantId || "Not available"}
-                      </code>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium mb-1">OpenAI IDs</h3>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Vector Store OpenAI ID:</span>
-                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                        {debugInfo.vectorStore?.openaiId || "Not available"}
-                      </code>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Assistant OpenAI ID:</span>
-                      <code className="block p-2 bg-muted rounded-md text-sm font-mono overflow-x-auto">
-                        {debugInfo.assistant?.openaiId || "Not available"}
-                      </code>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    )}
   </div>
-);
+  );
 }
 
 interface EditProjectFormProps {

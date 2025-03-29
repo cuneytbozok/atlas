@@ -237,6 +237,17 @@ export async function POST(
       }
     });
 
+    // Log the activity
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'ADD_MEMBER',
+        entityType: 'PROJECT_MEMBER',
+        entityId: newMember.id,
+        timestamp: new Date()
+      }
+    });
+
     return NextResponse.json(newMember, { status: 201 });
   } catch (error) {
     console.error("Error adding project member:", error);

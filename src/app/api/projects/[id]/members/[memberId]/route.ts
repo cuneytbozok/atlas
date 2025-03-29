@@ -121,6 +121,17 @@ export async function DELETE(
       }
     });
 
+    // Log the activity
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'REMOVE_MEMBER',
+        entityType: 'PROJECT_MEMBER',
+        entityId: memberId,
+        timestamp: new Date()
+      }
+    });
+
     return NextResponse.json(
       { message: "Member removed successfully" },
       { status: 200 }
