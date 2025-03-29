@@ -169,19 +169,14 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   
   if (isLoading) {
     return (
-      <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
+      <Card className="h-full bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
         <CardHeader className="pb-2">
           <div className="mb-2">
-            <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
-              <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full w-fit">
+              <LucideActivity className="h-10 w-10 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
-          <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
-            <span>Recent Activity</span>
-            <Button size="icon" variant="ghost" disabled>
-              <LucideRefreshCw className="h-4 w-4" />
-            </Button>
-          </CardTitle>
+          <CardTitle className="text-base text-blue-800 dark:text-blue-300">Activity Timeline</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -202,19 +197,14 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   
   if (error) {
     return (
-      <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
+      <Card className="h-full bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
         <CardHeader className="pb-2">
           <div className="mb-2">
-            <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
-              <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full w-fit">
+              <LucideActivity className="h-10 w-10 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
-          <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
-            <span>Recent Activity</span>
-            <Button size="icon" variant="ghost" onClick={handleRefresh}>
-              <LucideRefreshCw className="h-4 w-4" />
-            </Button>
-          </CardTitle>
+          <CardTitle className="text-base text-blue-800 dark:text-blue-300">Activity Timeline</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="py-6 text-center text-muted-foreground">
@@ -229,59 +219,42 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   }
   
   return (
-    <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
+    <Card className="h-full bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
       <CardHeader className="pb-2">
         <div className="mb-2">
-          <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
-            <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full w-fit">
+            <LucideActivity className="h-10 w-10 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
-        <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
-          <span>Recent Activity</span>
-          <Button size="icon" variant="ghost" onClick={handleRefresh}>
-            <LucideRefreshCw className="h-4 w-4" />
-          </Button>
-        </CardTitle>
+        <CardTitle className="text-base text-blue-800 dark:text-blue-300">Activity Timeline</CardTitle>
       </CardHeader>
       <CardContent>
         {activities.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground">
-            <p>No recent activity</p>
+          <div className="h-full flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          <>
-            <div className="space-y-4">
-              {activities.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      {getInitials(activity.user)}
-                    </AvatarFallback>
-                  </Avatar>
+          <div className="relative">
+            <div className="absolute top-0 bottom-0 left-[7px] border-l border-dashed border-blue-200 dark:border-blue-800"></div>
+            <div className="space-y-5">
+              {activities.map((activity, i) => (
+                <div key={activity.id} className="flex gap-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="h-3.5 w-3.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
+                  </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       {getActivityIcon(activity)}
-                      <p className="text-sm">{getActivityDescription(activity)}</p>
+                      <span className="text-sm font-medium">{getActivityDescription(activity)}</span>
+                      <time className="text-xs text-muted-foreground ml-auto">
+                        {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                      </time>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
-                    </p>
                   </div>
                 </div>
               ))}
             </div>
-            
-            {!showAll && activities.length >= limit && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full mt-4" 
-                onClick={handleViewMore}
-              >
-                View More
-              </Button>
-            )}
-          </>
+          </div>
         )}
       </CardContent>
     </Card>

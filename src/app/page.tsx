@@ -3,7 +3,7 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { LucideFolder, LucideUsers, LucideLoader, LucideBrain } from "lucide-react";
+import { LucideFolder, LucideUsers, LucideLoader, LucideBrain, LucideMessageSquare } from "lucide-react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useState, useEffect } from "react";
@@ -90,11 +90,11 @@ export default function Home() {
             <DashboardCard
               title="ATLAS AI"
               description="Chat with your AI assistant about your projects and documents"
-              icon={<LucideBrain className="h-8 w-8 text-secondary" />}
+              icon={<LucideBrain className="h-8 w-8 text-blue-600" />}
               action={
                 <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="secondary">Start Chat</Button>
+                    <Button variant="default">Start Chat</Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <ConnectToAtlasForm onClose={() => setIsConnectDialogOpen(false)} />
@@ -105,25 +105,25 @@ export default function Home() {
           </div>
           
           {/* AI Interactions Card - Large Icon and Number */}
-          <Card className="overflow-hidden bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/20 dark:to-background">
+          <Card className="overflow-hidden bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
             <div className="p-8">
               <div className="flex justify-between items-center">
-                <div className="bg-violet-100 dark:bg-violet-900/30 p-4 rounded-full">
-                  <LucideBrain className="h-16 w-16 text-violet-600 dark:text-violet-400" />
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-4 rounded-full">
+                  <LucideBrain className="h-16 w-16 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   {isLoading ? (
-                    <LucideLoader className="h-10 w-10 text-violet-600 dark:text-violet-400 animate-spin" />
+                    <LucideLoader className="h-10 w-10 text-blue-600 dark:text-blue-400 animate-spin" />
                   ) : (
-                    <span className="text-5xl font-bold text-violet-600 dark:text-violet-400">
+                    <span className="text-5xl font-bold text-blue-600 dark:text-blue-400">
                       {aiInteractionsCount?.toLocaleString() || "0"}
                     </span>
                   )}
                 </div>
               </div>
               <div className="mt-6">
-                <p className="text-xl font-medium text-violet-800 dark:text-violet-300">AI Interactions</p>
-                <p className="text-sm text-violet-600/70 dark:text-violet-400/70 mt-1">
+                <p className="text-xl font-medium text-blue-800 dark:text-blue-300">AI Interactions</p>
+                <p className="text-sm text-blue-600/70 dark:text-blue-400/70 mt-1">
                   Total AI assistant interactions across all projects
                 </p>
               </div>

@@ -351,26 +351,26 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
         </Card>
         
         {/* AI Interactions card */}
-        <Card className="overflow-hidden bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/20 dark:to-background">
+        <Card className="overflow-hidden bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
           <CardContent className="p-6">
             <div>
               <div className="flex justify-between items-center">
-                <div className="bg-violet-100 dark:bg-violet-900/30 p-3 rounded-full">
-                  <LucideBrain className="h-10 w-10 text-violet-600 dark:text-violet-400" />
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full">
+                  <LucideBrain className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   {isLoading ? (
-                    <LucideLoader className="h-8 w-8 text-violet-600 dark:text-violet-400 animate-spin" />
+                    <LucideLoader className="h-8 w-8 text-blue-600 dark:text-blue-400 animate-spin" />
                   ) : (
-                    <span className="text-4xl font-bold text-violet-600 dark:text-violet-400">
+                    <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">
                       {stats.aiInteractionsCount.toLocaleString()}
                     </span>
                   )}
                 </div>
               </div>
               <div className="mt-4">
-                <p className="text-base font-medium text-violet-800 dark:text-violet-300">AI Interactions</p>
-                <p className="text-xs text-violet-600/70 dark:text-violet-400/70 mt-1">
+                <p className="text-base font-medium text-blue-800 dark:text-blue-300">AI Interactions</p>
+                <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">
                   Total AI assistant interactions in this project
                 </p>
               </div>
@@ -379,22 +379,22 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
         </Card>
         
         {/* Chat button card */}
-        <Card className="overflow-hidden bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
+        <Card className="overflow-hidden bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
           <CardContent className="p-6 flex flex-col justify-between h-full">
             <div>
               <div className="flex justify-between items-center">
-                <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full">
-                  <LucideMessageSquare className="h-10 w-10 text-green-600 dark:text-green-400" />
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full">
+                  <LucideMessageSquare className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
               <div className="mt-4">
-                <p className="text-base font-medium text-green-800 dark:text-green-300">Chat with ATLAS</p>
-                <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">
+                <p className="text-base font-medium text-blue-800 dark:text-blue-300">Chat with ATLAS</p>
+                <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">
                   Interact with your AI assistant
                 </p>
               </div>
             </div>
-            <Button asChild className="w-full mt-6" variant="secondary">
+            <Button asChild className="w-full mt-6" variant="outline">
               <Link href={`/projects/${projectId}/chat`}>
                 <LucideMessageSquare className="h-4 w-4 mr-2" />
                 Open Chat

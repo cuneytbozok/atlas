@@ -673,7 +673,7 @@ export default function ProjectPage() {
             )}
         </div>
         <div className="flex gap-2">
-          <Button asChild variant="secondary">
+          <Button asChild variant="default">
             <Link href={`/projects/${project.id}/chat`}>
               <MessagesSquare className="h-4 w-4 mr-2" />
               Chat

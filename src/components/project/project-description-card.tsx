@@ -38,14 +38,14 @@ const getInitials = (name: string | null, email: string): string => {
 
 export function ProjectDescriptionCard({ description, projectManager }: ProjectDescriptionCardProps) {
   return (
-    <Card className="overflow-hidden bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-background">
+    <Card className="overflow-hidden bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
       <CardHeader className="pb-2">
         <div className="mb-2">
-          <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-full w-fit">
-            <LucideFileText className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full w-fit">
+            <LucideFileText className="h-10 w-10 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
-        <CardTitle className="text-base text-amber-800 dark:text-amber-300">Project Description</CardTitle>
+        <CardTitle className="text-base text-blue-800 dark:text-blue-300">Project Description</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -59,7 +59,7 @@ export function ProjectDescriptionCard({ description, projectManager }: ProjectD
           
           <div>
             <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
-              <LucideUsers className="h-4 w-4 text-amber-600/70 dark:text-amber-400/70" />
+              <LucideUsers className="h-4 w-4 text-blue-600/70 dark:text-blue-400/70" />
               Project Manager
             </h3>
             
