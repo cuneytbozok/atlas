@@ -59,12 +59,14 @@ export function TeamMembersCard({ members, onManageTeam, projectManager }: TeamM
   const hasMoreMembers = regularMembers.length > 4;
   
   return (
-    <Card>
+    <Card className="overflow-hidden bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/20 dark:to-background">
       <CardHeader className="pb-2">
         <div className="mb-2">
-          <LucideUsers className="h-5 w-5 text-muted-foreground" />
+          <div className="bg-indigo-100 dark:bg-indigo-900/30 p-3 rounded-full w-fit">
+            <LucideUsers className="h-10 w-10 text-indigo-600 dark:text-indigo-400" />
+          </div>
         </div>
-        <CardTitle className="text-base flex items-center justify-between">
+        <CardTitle className="text-base flex items-center justify-between text-indigo-800 dark:text-indigo-300">
           <span>Team Members</span>
           <Badge variant="outline" className="ml-2">
             {members.length}
@@ -165,7 +167,7 @@ export function TeamMembersCard({ members, onManageTeam, projectManager }: TeamM
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-primary rounded-full" 
+                  className="h-full bg-indigo-500 rounded-full" 
                   style={{ 
                     width: `${Math.min(100, members.length * 10)}%`,
                     // If more than 10 members, cap at 100%

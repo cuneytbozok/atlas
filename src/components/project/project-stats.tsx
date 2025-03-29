@@ -251,11 +251,13 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
     <>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Documents card */}
-        <Card>
-          <CardContent className="p-4">
+        <Card className="overflow-hidden bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
+          <CardContent className="p-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-2">
-                <LucideFileText className="h-5 w-5 text-primary/80" />
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full">
+                  <LucideFileText className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                </div>
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
@@ -301,7 +303,7 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
                   <>
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-2xl font-bold">
+                        <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {documentsCount.toLocaleString()}
                         </h3>
                         <Badge variant="outline">
@@ -341,7 +343,7 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
                 )}
               </div>
               
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-blue-600/70 dark:text-blue-400/70 mt-1">
                 Files uploaded to this project
               </p>
             </div>
@@ -377,16 +379,22 @@ export function ProjectStats({ projectId, documentsCount, onUploadClick, fileUpl
         </Card>
         
         {/* Chat button card */}
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <div className="space-y-2 mb-2">
-              <LucideMessageSquare className="h-5 w-5 text-blue-500/80" />
-              <h3 className="text-lg font-medium">Chat with ATLAS</h3>
-              <p className="text-sm text-muted-foreground">
-                Interact with your AI assistant
-              </p>
+        <Card className="overflow-hidden bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
+          <CardContent className="p-6 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex justify-between items-center">
+                <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full">
+                  <LucideMessageSquare className="h-10 w-10 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <p className="text-base font-medium text-green-800 dark:text-green-300">Chat with ATLAS</p>
+                <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">
+                  Interact with your AI assistant
+                </p>
+              </div>
             </div>
-            <Button asChild className="w-full mt-2">
+            <Button asChild className="w-full mt-6" variant="secondary">
               <Link href={`/projects/${projectId}/chat`}>
                 <LucideMessageSquare className="h-4 w-4 mr-2" />
                 Open Chat

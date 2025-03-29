@@ -169,9 +169,14 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   
   if (isLoading) {
     return (
-      <Card>
+      <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center justify-between">
+          <div className="mb-2">
+            <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
+              <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+            </div>
+          </div>
+          <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
             <span>Recent Activity</span>
             <Button size="icon" variant="ghost" disabled>
               <LucideRefreshCw className="h-4 w-4" />
@@ -197,9 +202,14 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   
   if (error) {
     return (
-      <Card>
+      <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center justify-between">
+          <div className="mb-2">
+            <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
+              <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+            </div>
+          </div>
+          <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
             <span>Recent Activity</span>
             <Button size="icon" variant="ghost" onClick={handleRefresh}>
               <LucideRefreshCw className="h-4 w-4" />
@@ -219,9 +229,14 @@ export function ActivityTimeline({ projectId, limit = 5 }: ActivityTimelineProps
   }
   
   return (
-    <Card>
+    <Card className="overflow-hidden bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center justify-between">
+        <div className="mb-2">
+          <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full w-fit">
+            <LucideActivity className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
+          </div>
+        </div>
+        <CardTitle className="text-base flex items-center justify-between text-cyan-800 dark:text-cyan-300">
           <span>Recent Activity</span>
           <Button size="icon" variant="ghost" onClick={handleRefresh}>
             <LucideRefreshCw className="h-4 w-4" />
