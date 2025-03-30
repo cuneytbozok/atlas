@@ -156,6 +156,10 @@ main() {
   # Restore the original seed file for future use
   restore_original_seed
   
+  # Initialize the password reset table
+  log "Setting up password reset functionality..."
+  bash ./setup-password-reset.sh
+  
   log "✅ Initialization complete, starting application..."
   
   # Start the application

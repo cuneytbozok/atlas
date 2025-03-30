@@ -101,6 +101,45 @@ npx prisma db execute --file add_token_usage_fields.sql
 
 Once the fields are added, Atlas will automatically start tracking token usage for all messages. You can view token usage statistics in the Insights page under the "Token Usage" tab.
 
+## Password Reset System
+
+The Atlas application includes a secure, production-ready password reset system. Key features include:
+
+- **Secure Token Generation**: Using cryptographically secure random tokens
+- **Time-Limited Tokens**: Reset tokens expire after 1 hour
+- **Database Persistence**: Tokens are stored in the `PasswordResetToken` table
+- **Professional Email Templates**: Beautiful, responsive email templates
+- **Production Email Handling**: Integration with Resend for reliable email delivery
+- **Security Best Practices**:
+  - No email enumeration (same response regardless of email existence)
+  - Strong password validation
+  - Single-use tokens (consumed after use)
+  - bcrypt password hashing with appropriate complexity
+
+### Setup
+
+The password reset system is automatically set up when the application starts via:
+
+1. The `setup-password-reset.sh` script creates the necessary database structure
+2. Docker entrypoint scripts ensure the system is ready in all environments
+3. Integration with Resend for email delivery (configure via `RESEND_API_KEY` in `.env`)
+
+### Configuration
+
+Configure the following environment variables:
+
+```env
+# Required for email sending
+RESEND_API_KEY=re_xxxxxxxxxxxx
+
+# Email configuration (customize as needed)
+EMAIL_FROM=onboarding@resend.dev
+EMAIL_REPLY_TO=your@email.com
+
+# App URL (for reset links)
+NEXTAUTH_URL=https://your-app-url.com
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

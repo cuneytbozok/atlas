@@ -24,6 +24,7 @@ model User {
   refreshTokens  RefreshToken[]
   sessions       Session[]
   userRoles      UserRole[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Session {
@@ -37,6 +38,18 @@ model Session {
 }
 
 model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String

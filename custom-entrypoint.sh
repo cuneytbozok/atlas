@@ -212,6 +212,10 @@ main() {
   # Run database migrations
   run_migrations
   
+  # Initialize the password reset table
+  log "Setting up password reset functionality..."
+  bash ./setup-password-reset.sh
+  
   # Initialize database with seed script
   initialize_database
   
