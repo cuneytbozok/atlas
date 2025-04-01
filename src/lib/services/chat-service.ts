@@ -508,8 +508,8 @@ export class ChatService {
                   role: 'assistant',
                   content: textContent,
                   openaiMessageId: latestAssistantMessage.id,
-                  // Use type assertion for new fields
-                  runId
+                  // Don't set runId here, as it would violate unique constraint
+                  // The runId belongs only to the user message that initiated the run
                 } as any
               });
               console.log(`Created message in DB with id ${newMessage.id}`);
