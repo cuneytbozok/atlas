@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   # PostgreSQL database
   postgres:
@@ -8,15 +7,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: atlas
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-atlas}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Add initialization scripts for database setup
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,29 +24,51 @@ services:
   atlas:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: ${DOCKERFILE:-Dockerfile}
     container_name: atlas-app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
+    # Environment Variables Priority:
+    # 1. Values passed directly to docker-compose command (highest priority)
+    # 2. Values from host's environment variables
+    # 3. Values defined in .env file in the same directory as docker-compose.yml
+    # 4. Default values specified after the :- (lowest priority)
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/atlas?schema=public
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      # App configuration
+      - NODE_ENV=${NODE_ENV:-production}
+      
+      # Database connection
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atlas}?schema=public
+      - DB_HOST=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-atlas}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      
+      # Authentication
+      - JWT_SECRET=${JWT_SECRET:-change_me_in_production}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-nextauth-secret-key-change-in-production}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change_me_in_production}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-placeholder-for-docker-build-only}
-      - NEXT_DISABLE_ESLINT=1
+      
+      # API Keys - Set these using environment variables when running docker-compose
+      # Example: OPENAI_API_KEY=your_key docker-compose up -d
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-re_placeholder_for_docker_build_only}
+      
+      # Email configuration
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@example.com}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-support@example.com}
     volumes:
-      # Mount for local development (uncomment for development)
-      - ./:/app
-      # Exclude node_modules from the volume mapping
-      - /app/node_modules
-      - /app/.next
+      # Production volumes for persistent data
+      - atlas-uploads:/app/uploads
+      # Mount the prisma directory as a volume to allow write access for debugging
+      - ./prisma:/app/prisma:rw
+      # Mount debug tools
+      - ./debug-admin.js:/app/debug-admin.js:rw
     networks:
       - atlas-network
     logging:
@@ -59,8 +78,8 @@ services:
         max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
       start_period: 30s
 
@@ -69,6 +88,9 @@ networks:
   atlas-network:
     driver: bridge
 
-# Define a named volume for data persistence
+# Define named volumes for data persistence
 volumes:
-  postgres-data: 
+  postgres-data:
+    name: atlas-postgres-data
+  atlas-uploads:
+    name: atlas-uploads-data 

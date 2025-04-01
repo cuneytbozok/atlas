@@ -3,11 +3,39 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
+/**
+ * Debug Admin User Script
+ * 
+ * HOW TO USE:
+ * 1. From the container: docker-compose exec atlas-app node /app/debug-admin.js
+ * 2. From host: node debug-admin.js (if you have the right node environment set up)
+ * 
+ * This script provides detailed diagnostics about admin user setup and will:
+ * - Check database connection
+ * - Verify the ADMIN role exists (creates it if missing)
+ * - Check for admin user with email admin@atlas.com (creates if missing)
+ * - Reset admin password to "password" 
+ * - Ensure proper role assignment
+ * - List all users and roles for verification
+ */
+
 async function debugAdminUser() {
   try {
+    console.log('\n=== ATLAS ADMIN USER DIAGNOSTIC TOOL ===\n');
     console.log('🔍 Checking database connection...');
-    await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ Database connection successful');
+    
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('✅ Database connection successful');
+    } catch (dbError) {
+      console.error('❌ Database connection failed!');
+      console.error('Error details:', dbError.message);
+      console.log('\n🔧 Possible solutions:');
+      console.log('1. Check if your DATABASE_URL is correctly set');
+      console.log('2. Verify that the database is running and accessible');
+      console.log('3. Ensure PostgreSQL service is healthy');
+      throw new Error('Database connection failed, cannot proceed');
+    }
 
     console.log('\n🔍 Checking for ADMIN role...');
     let adminRole = await prisma.role.findFirst({ 
@@ -48,6 +76,27 @@ async function debugAdminUser() {
           }
         });
         console.log('✅ ADMIN role assigned to user');
+      } else {
+        // Check if admin has the ADMIN role specifically
+        const hasAdminRole = adminUser.userRoles.some(
+          async (ur) => {
+            const role = await prisma.role.findUnique({ where: { id: ur.roleId } });
+            return role && role.name === 'ADMIN';
+          }
+        );
+        
+        if (!hasAdminRole) {
+          console.log('❌ Admin user does not have the ADMIN role! Assigning it...');
+          await prisma.userRole.create({
+            data: {
+              userId: adminUser.id,
+              roleId: adminRole.id
+            }
+          });
+          console.log('✅ ADMIN role assigned to user');
+        } else {
+          console.log('✅ Admin user has the ADMIN role properly assigned');
+        }
       }
       
       // Reset password for admin user
@@ -84,6 +133,47 @@ async function debugAdminUser() {
       console.log('✅ ADMIN role assigned to new user');
     }
     
+    // Check permissions
+    console.log('\n🔍 Checking essential permissions...');
+    const essentialPermissions = [
+      { name: 'MANAGE_APP_SETTINGS', description: 'Permission to manage application settings' },
+      { name: 'VIEW_APP_SETTINGS', description: 'Permission to view application settings' },
+      { name: 'USE_AI', description: 'Permission to use AI features' }
+    ];
+    
+    for (const permDef of essentialPermissions) {
+      let permission = await prisma.permission.findFirst({ 
+        where: { name: permDef.name }
+      });
+      
+      if (!permission) {
+        permission = await prisma.permission.create({
+          data: {
+            name: permDef.name,
+            description: permDef.description
+          }
+        });
+        console.log(`Created permission: ${permDef.name}`);
+      }
+      
+      const rolePermission = await prisma.rolePermission.findFirst({
+        where: {
+          roleId: adminRole.id,
+          permissionId: permission.id
+        }
+      });
+      
+      if (!rolePermission) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: adminRole.id,
+            permissionId: permission.id
+          }
+        });
+        console.log(`Assigned permission to ADMIN role: ${permDef.name}`);
+      }
+    }
+    
     console.log('\n🔍 Listing all users in database:');
     const allUsers = await prisma.user.findMany({
       include: {
@@ -95,13 +185,21 @@ async function debugAdminUser() {
       }
     });
     
-    allUsers.forEach(user => {
-      console.log(`User: ${user.name} (${user.email})`);
-      console.log(`Roles: ${user.userRoles.map(ur => ur.role?.name).join(', ') || 'None'}`);
-      console.log('---');
-    });
+    if (allUsers.length === 0) {
+      console.log('❌ No users found in the database!');
+    } else {
+      allUsers.forEach(user => {
+        console.log(`User: ${user.name} (${user.email})`);
+        console.log(`Roles: ${user.userRoles.map(ur => ur.role?.name).join(', ') || 'None'}`);
+        console.log('---');
+      });
+    }
     
     console.log('\n✅ Debug process completed');
+    console.log('\n📝 Login credentials:');
+    console.log('Email: admin@atlas.com');
+    console.log('Password: password');
+    console.log('\n🔐 IMPORTANT: Change this password after login for security!');
     
   } catch (error) {
     console.error('❌ Error:', error);
@@ -110,4 +208,17 @@ async function debugAdminUser() {
   }
 }
 
-debugAdminUser(); 
+debugAdminUser()
+  .then(() => {
+    console.log('\n✨ Admin diagnostic completed successfully');
+    process.exit(0);
+  })
+  .catch(error => {
+    console.error('\n❌ Fatal error during diagnosis:', error);
+    console.log('\nTroubleshooting steps:');
+    console.log('1. Check your DATABASE_URL environment variable');
+    console.log('2. Verify database is running properly');
+    console.log('3. Try running the script from within the Docker container:');
+    console.log('   docker-compose exec atlas-app node /app/debug-admin.js');
+    process.exit(1);
+  }); 

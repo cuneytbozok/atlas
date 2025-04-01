@@ -6,11 +6,17 @@ RUN apk add --no-cache bash curl postgresql-client
 # Set working directory
 WORKDIR /app
 
-# Copy package files and installation script
-COPY package*.json install-dependencies.sh ./
+# Copy package files first
+COPY package*.json ./
 
-# Make the script executable and install dependencies with legacy-peer-deps
-RUN chmod +x install-dependencies.sh && ./install-dependencies.sh
+# Create the dependency installation script directly in the container
+RUN echo '#!/bin/sh' > install-dependencies.sh && \
+    echo 'echo "Installing dependencies with legacy peer deps..."' >> install-dependencies.sh && \
+    echo 'npm install --legacy-peer-deps "$@"' >> install-dependencies.sh && \
+    echo 'echo "Dependencies installed successfully!"' >> install-dependencies.sh && \
+    chmod +x install-dependencies.sh && \
+    ls -la && \
+    ./install-dependencies.sh
 
 # Copy the configuration files
 COPY postcss.config.js tailwind.config.js next.config.js tsconfig.json ./
@@ -24,14 +30,16 @@ COPY .env.docker .env
 # Generate Prisma client
 RUN npx prisma generate
 
-# Make the entrypoint scripts executable
-RUN chmod +x /app/docker-entrypoint.sh
-RUN chmod +x /app/custom-entrypoint.sh
-
-# Set environment variables
+# Set environment variables for development
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NEXT_DISABLE_ESLINT=1 \
-    NODE_ENV=development
+    NODE_ENV=development \
+    RESEND_API_KEY="re_placeholder_for_dev_only" \
+    EMAIL_FROM="noreply@example.com" \
+    EMAIL_REPLY_TO="support@example.com"
+
+# Make the entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
 
 # Expose the port
 EXPOSE 3000
@@ -41,5 +49,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Set entrypoint and command
-ENTRYPOINT ["/app/custom-entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["npm", "run", "dev"]

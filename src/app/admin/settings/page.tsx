@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { LucideLoader, LucideEye, LucideEyeOff, LucideShield, LucideSave, LucideKey, LucideBrain, LucideDatabase } from "lucide-react";
+import { LucideLoader, LucideEye, LucideEyeOff, LucideShield, LucideSave, LucideKey, LucideBrain, LucideDatabase, LucideMail } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminSettingsPage() {
   const { hasRole } = useAuth();
@@ -42,6 +43,17 @@ export default function AdminSettingsPage() {
   const [isAdminApiKeySet, setIsAdminApiKeySet] = useState(false);
   const [showAdminApiKey, setShowAdminApiKey] = useState(false);
   const [isAdminApiKeySaving, setIsAdminApiKeySaving] = useState(false);
+  
+  // Email settings state
+  const [emailFrom, setEmailFrom] = useState<string>('');
+  const [emailReplyTo, setEmailReplyTo] = useState<string>('');
+  const [resendApiKey, setResendApiKey] = useState<string>('');
+  const [showResendApiKey, setShowResendApiKey] = useState<boolean>(false);
+  const [isEmailSaving, setIsEmailSaving] = useState<boolean>(false);
+  const [isResendApiKeySet, setIsResendApiKeySet] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState("openai");
+  const [testEmailAddress, setTestEmailAddress] = useState<string>('');
+  const [isTestEmailSending, setIsTestEmailSending] = useState<boolean>(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -214,6 +226,9 @@ export default function AdminSettingsPage() {
           setAiModel(modelData.model);
         }
       }
+      
+      // Load email settings
+      loadEmailSettings();
     } catch (err) {
       console.error("Error checking API key:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to check API key status";
@@ -425,6 +440,218 @@ export default function AdminSettingsPage() {
       setIsAdminApiKeySaving(false);
     }
   };
+  
+  // Load email settings
+  const loadEmailSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/settings/email');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to load email settings');
+      }
+      
+      const data = await response.json();
+      
+      if (data.emailFrom) {
+        setEmailFrom(data.emailFrom);
+      }
+      
+      if (data.emailReplyTo) {
+        setEmailReplyTo(data.emailReplyTo);
+      }
+      
+      setIsResendApiKeySet(data.isResendApiKeySet || false);
+      
+    } catch (err) {
+      console.error('Error loading email settings:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load email settings';
+      toast.error('Error', {
+        description: errorMessage
+      });
+    }
+  };
+  
+  // Save email settings
+  const handleSaveEmailSettings = async () => {
+    try {
+      setError(null);
+      setIsEmailSaving(true);
+      
+      // Validate email addresses
+      if (emailFrom && !isValidEmail(emailFrom)) {
+        setError('Invalid sender email address');
+        return;
+      }
+      
+      if (emailReplyTo && !isValidEmail(emailReplyTo)) {
+        setError('Invalid reply-to email address');
+        return;
+      }
+      
+      const response = await fetch('/api/admin/settings/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          emailFrom,
+          emailReplyTo
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save email settings');
+      }
+      
+      toast.success('Success', {
+        description: 'Email settings saved successfully'
+      });
+      
+    } catch (err) {
+      console.error('Error saving email settings:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save email settings';
+      setError(errorMessage);
+      toast.error('Error', {
+        description: errorMessage
+      });
+    } finally {
+      setIsEmailSaving(false);
+    }
+  };
+  
+  // Save Resend API key
+  const handleSaveResendApiKey = async () => {
+    try {
+      setError(null);
+      setIsEmailSaving(true);
+      
+      if (!resendApiKey.trim()) {
+        setError('Resend API key is required');
+        return;
+      }
+      
+      if (!resendApiKey.startsWith('re_')) {
+        setError('Invalid Resend API key format. Keys should start with "re_"');
+        return;
+      }
+      
+      const response = await fetch('/api/admin/settings/email/resend-api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiKey: resendApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save Resend API key');
+      }
+      
+      setIsResendApiKeySet(true);
+      setResendApiKey('');
+      toast.success('Success', {
+        description: 'Resend API key saved successfully'
+      });
+      
+    } catch (err) {
+      console.error('Error saving Resend API key:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save Resend API key';
+      setError(errorMessage);
+      toast.error('Error', {
+        description: errorMessage
+      });
+    } finally {
+      setIsEmailSaving(false);
+    }
+  };
+  
+  // Delete Resend API key
+  const handleDeleteResendApiKey = async () => {
+    try {
+      setError(null);
+      setIsEmailSaving(true);
+      
+      const response = await fetch('/api/admin/settings/email/resend-api', {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete Resend API key');
+      }
+      
+      setIsResendApiKeySet(false);
+      toast.success('Success', {
+        description: 'Resend API key removed successfully'
+      });
+      
+    } catch (err) {
+      console.error('Error deleting Resend API key:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete Resend API key';
+      setError(errorMessage);
+      toast.error('Error', {
+        description: errorMessage
+      });
+    } finally {
+      setIsEmailSaving(false);
+    }
+  };
+  
+  // Helper function to validate email
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  // Send test email
+  const handleSendTestEmail = async () => {
+    try {
+      setError(null);
+      setIsTestEmailSending(true);
+      
+      // Validate email address
+      if (!testEmailAddress || !isValidEmail(testEmailAddress)) {
+        setError('Please enter a valid email address for testing');
+        setIsTestEmailSending(false);
+        return;
+      }
+      
+      const response = await fetch('/api/admin/settings/email/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          testEmail: testEmailAddress
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send test email');
+      }
+      
+      const data = await response.json();
+      
+      toast.success('Success', {
+        description: `Test email sent successfully to ${data.recipient}`
+      });
+      
+    } catch (err) {
+      console.error('Error sending test email:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send test email';
+      setError(errorMessage);
+      toast.error('Error', {
+        description: errorMessage
+      });
+    } finally {
+      setIsTestEmailSending(false);
+    }
+  };
 
   return (
     <ProtectedRoute requiredRole="ADMIN">
@@ -492,224 +719,436 @@ export default function AdminSettingsPage() {
             </Alert>
           )}
 
-          {/* API Key Management Card - only show if no database connection error */}
+          {/* Settings Tabs - only show if no database connection error */}
           {!isDatabaseError && (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>OpenAI Configuration</CardTitle>
-                    <CardDescription>
-                      Configure OpenAI API settings for AI features
-                    </CardDescription>
-                  </div>
-                  <LucideKey className="h-6 w-6 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* API Key Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">API Key</h3>
-                  
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+            <Tabs defaultValue="openai" className="w-full" value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="openai" className="flex items-center gap-2">
+                  <LucideBrain className="h-4 w-4" />
+                  OpenAI Settings
+                </TabsTrigger>
+                <TabsTrigger value="email" className="flex items-center gap-2">
+                  <LucideMail className="h-4 w-4" />
+                  Email Settings
+                </TabsTrigger>
+              </TabsList>
+              
+              {/* OpenAI Settings Tab */}
+              <TabsContent value="openai">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle>OpenAI Configuration</CardTitle>
+                        <CardDescription>
+                          Configure OpenAI API settings for AI features
+                        </CardDescription>
+                      </div>
+                      <LucideKey className="h-6 w-6 text-muted-foreground" />
                     </div>
-                  ) : isApiKeySet ? (
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* API Key Section */}
                     <div className="space-y-4">
-                      <Alert variant="default" className="bg-green-50 dark:bg-green-950">
-                        <AlertTitle>API Key Configured</AlertTitle>
-                        <AlertDescription>
-                          Your OpenAI API key is configured and ready to use.
-                        </AlertDescription>
-                      </Alert>
+                      <h3 className="text-lg font-medium">API Key</h3>
                       
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive">
-                            Remove API Key
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove API Key</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove your OpenAI API key? This will disable AI features until a new key is provided.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteApiKey}>
-                              Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex">
-                          <Input
-                            type={showApiKey ? "text" : "password"}
-                            placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
-                          />
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : isApiKeySet ? (
+                        <div className="space-y-4">
+                          <Alert variant="default" className="bg-green-50 dark:bg-green-950">
+                            <AlertTitle>API Key Configured</AlertTitle>
+                            <AlertDescription>
+                              Your OpenAI API key is configured and ready to use.
+                            </AlertDescription>
+                          </Alert>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive">
+                                Remove API Key
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove your OpenAI API key? This will disable AI features until a new key is provided.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteApiKey}>
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex">
+                              <Input
+                                type={showApiKey ? "text" : "password"}
+                                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setShowApiKey(!showApiKey)}
+                                className="rounded-l-none border-l-0"
+                                type="button"
+                              >
+                                {showApiKey ? <LucideEyeOff /> : <LucideEye />}
+                              </Button>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Enter your OpenAI API key to enable AI features.
+                              Your key is securely encrypted before storage.
+                            </p>
+                          </div>
                           <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setShowApiKey(!showApiKey)}
-                            className="rounded-l-none border-l-0"
-                            type="button"
+                            onClick={handleSaveApiKey}
+                            disabled={isSaving || !apiKey.trim()}
                           >
-                            {showApiKey ? <LucideEyeOff /> : <LucideEye />}
+                            {isSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                            Save API Key
                           </Button>
                         </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Admin API Key Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Admin API Key</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Separate API key for usage analytics with the 'api.usage.read' permission scope.
+                        Use a dedicated API key with admin permissions for analytics.
+                      </p>
+                      
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : isAdminApiKeySet ? (
+                        <div className="space-y-4">
+                          <Alert variant="default" className="bg-green-50 dark:bg-green-950">
+                            <AlertTitle>Admin API Key Configured</AlertTitle>
+                            <AlertDescription>
+                              Your OpenAI Admin API key is configured for usage analytics.
+                            </AlertDescription>
+                          </Alert>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive">
+                                Remove Admin API Key
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Admin API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove your OpenAI Admin API key? This will disable real usage analytics until a new key is provided.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteAdminApiKey}>
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex">
+                              <Input
+                                type={showAdminApiKey ? "text" : "password"}
+                                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                value={adminApiKey}
+                                onChange={(e) => setAdminApiKey(e.target.value)}
+                                className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setShowAdminApiKey(!showAdminApiKey)}
+                                className="rounded-l-none border-l-0"
+                                type="button"
+                              >
+                                {showAdminApiKey ? <LucideEyeOff /> : <LucideEye />}
+                              </Button>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleSaveAdminApiKey}
+                            disabled={isAdminApiKeySaving || !adminApiKey.trim()}
+                          >
+                            {isAdminApiKeySaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                            Save Admin API Key
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Model Selection Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">AI Model Configuration</h3>
+                      
+                      <div className="space-y-2">
+                        <label htmlFor="ai-model" className="text-sm font-medium">
+                          OpenAI Model
+                        </label>
+                        <Input
+                          id="ai-model"
+                          placeholder="e.g., gpt-4o, gpt-3.5-turbo"
+                          value={aiModel}
+                          onChange={(e) => setAiModel(e.target.value)}
+                        />
                         <p className="text-sm text-muted-foreground">
-                          Enter your OpenAI API key to enable AI features.
-                          Your key is securely encrypted before storage.
+                          Specify which OpenAI model to use for AI features. Default is gpt-4o.
                         </p>
                       </div>
+                      
                       <Button
-                        onClick={handleSaveApiKey}
-                        disabled={isSaving || !apiKey.trim()}
+                        onClick={handleSaveModel}
+                        disabled={isModelSaving || !aiModel.trim()}
                       >
-                        {isSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
-                        Save API Key
+                        {isModelSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                        Save Model Setting
                       </Button>
                     </div>
-                  )}
-                </div>
 
-                <Separator />
-
-                {/* Admin API Key Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Admin API Key</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Separate API key for usage analytics with the 'api.usage.read' permission scope.
-                    Use a dedicated API key with admin permissions for analytics.
-                  </p>
-                  
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <LucideLoader className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  ) : isAdminApiKeySet ? (
+                    {/* AI Playground Link */}
                     <div className="space-y-4">
-                      <Alert variant="default" className="bg-green-50 dark:bg-green-950">
-                        <AlertTitle>Admin API Key Configured</AlertTitle>
-                        <AlertDescription>
-                          Your OpenAI Admin API key is configured for usage analytics.
-                        </AlertDescription>
-                      </Alert>
+                      <h3 className="text-lg font-medium">AI Playground</h3>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => router.push('/admin/settings/ai-playground')}
+                        disabled={!isApiKeySet}
+                      >
+                        <LucideBrain className="mr-2 h-4 w-4" />
+                        Open AI Playground
+                      </Button>
+                      {!isApiKeySet && (
+                        <p className="text-sm text-muted-foreground">
+                          You need to set up an API key before using the AI Playground.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              
+              {/* Email Settings Tab */}
+              <TabsContent value="email">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle>Email Configuration</CardTitle>
+                        <CardDescription>
+                          Configure email settings for notifications and user communications
+                        </CardDescription>
+                      </div>
+                      <LucideMail className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Resend API Key Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Resend API Key</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Resend.com API key for sending transactional emails like password resets and notifications.
+                      </p>
                       
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive">
-                            Remove Admin API Key
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove Admin API Key</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove your OpenAI Admin API key? This will disable real usage analytics until a new key is provided.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteAdminApiKey}>
-                              Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex">
-                          <Input
-                            type={showAdminApiKey ? "text" : "password"}
-                            placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                            value={adminApiKey}
-                            onChange={(e) => setAdminApiKey(e.target.value)}
-                            className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
-                          />
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : isResendApiKeySet ? (
+                        <div className="space-y-4">
+                          <Alert variant="default" className="bg-green-50 dark:bg-green-950">
+                            <AlertTitle>Resend API Key Configured</AlertTitle>
+                            <AlertDescription>
+                              Your Resend API key is configured for sending emails.
+                            </AlertDescription>
+                          </Alert>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive">
+                                Remove Resend API Key
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Resend API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove your Resend API key? This will disable email sending capabilities until a new key is provided.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteResendApiKey}>
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex">
+                              <Input
+                                type={showResendApiKey ? "text" : "password"}
+                                placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                value={resendApiKey}
+                                onChange={(e) => setResendApiKey(e.target.value)}
+                                className="flex-1 rounded-r-none focus-visible:ring-0 focus-visible:ring-transparent"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setShowResendApiKey(!showResendApiKey)}
+                                className="rounded-l-none border-l-0"
+                                type="button"
+                              >
+                                {showResendApiKey ? <LucideEyeOff /> : <LucideEye />}
+                              </Button>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Enter your Resend API key to enable email functionality.
+                              Get one at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">resend.com</a>.
+                            </p>
+                          </div>
                           <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setShowAdminApiKey(!showAdminApiKey)}
-                            className="rounded-l-none border-l-0"
-                            type="button"
+                            onClick={handleSaveResendApiKey}
+                            disabled={isEmailSaving || !resendApiKey.trim()}
                           >
-                            {showAdminApiKey ? <LucideEyeOff /> : <LucideEye />}
+                            {isEmailSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                            Save Resend API Key
                           </Button>
                         </div>
-                      </div>
-                      <Button
-                        onClick={handleSaveAdminApiKey}
-                        disabled={isAdminApiKeySaving || !adminApiKey.trim()}
-                      >
-                        {isAdminApiKeySaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
-                        Save Admin API Key
-                      </Button>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <Separator />
+                    <Separator />
 
-                {/* Model Selection Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">AI Model Configuration</h3>
-                  
-                  <div className="space-y-2">
-                    <label htmlFor="ai-model" className="text-sm font-medium">
-                      OpenAI Model
-                    </label>
-                    <Input
-                      id="ai-model"
-                      placeholder="e.g., gpt-4o, gpt-3.5-turbo"
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Specify which OpenAI model to use for AI features. Default is gpt-4o.
-                    </p>
-                  </div>
-                  
-                  <Button
-                    onClick={handleSaveModel}
-                    disabled={isModelSaving || !aiModel.trim()}
-                  >
-                    {isModelSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
-                    Save Model Setting
-                  </Button>
-                </div>
-
-                {/* AI Playground Link */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">AI Playground</h3>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => router.push('/admin/settings/ai-playground')}
-                    disabled={!isApiKeySet}
-                  >
-                    <LucideBrain className="mr-2 h-4 w-4" />
-                    Open AI Playground
-                  </Button>
-                  {!isApiKeySet && (
-                    <p className="text-sm text-muted-foreground">
-                      You need to set up an API key before using the AI Playground.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    {/* Email Address Configuration */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Email Address Configuration</h3>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label htmlFor="email-from" className="text-sm font-medium">
+                            From Address
+                          </label>
+                          <Input
+                            id="email-from"
+                            placeholder="noreply@yourdomain.com"
+                            value={emailFrom}
+                            onChange={(e) => setEmailFrom(e.target.value)}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            The email address that will appear in the "From" field of sent emails.
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label htmlFor="email-reply-to" className="text-sm font-medium">
+                            Reply-To Address
+                          </label>
+                          <Input
+                            id="email-reply-to"
+                            placeholder="support@yourdomain.com"
+                            value={emailReplyTo}
+                            onChange={(e) => setEmailReplyTo(e.target.value)}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            The email address that recipients will reply to when responding to emails.
+                          </p>
+                        </div>
+                        
+                        <Button
+                          onClick={handleSaveEmailSettings}
+                          disabled={isEmailSaving}
+                        >
+                          {isEmailSaving ? <LucideLoader className="mr-2 h-4 w-4 animate-spin" /> : <LucideSave className="mr-2 h-4 w-4" />}
+                          Save Email Settings
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
+                    {/* Email Testing */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Test Email Configuration</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Send a test email to verify your configuration is working correctly.
+                      </p>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label htmlFor="test-email" className="text-sm font-medium">
+                            Test Email Address
+                          </label>
+                          <Input
+                            id="test-email"
+                            placeholder="your-email@example.com"
+                            value={testEmailAddress}
+                            onChange={(e) => setTestEmailAddress(e.target.value)}
+                            disabled={!isResendApiKeySet || isTestEmailSending}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Enter the email address where you want to receive the test email.
+                          </p>
+                        </div>
+                        
+                        <Button 
+                          variant="outline"
+                          disabled={!isResendApiKeySet || isTestEmailSending || !testEmailAddress}
+                          onClick={handleSendTestEmail}
+                        >
+                          {isTestEmailSending ? (
+                            <>
+                              <LucideLoader className="mr-2 h-4 w-4 animate-spin" />
+                              Sending Test Email...
+                            </>
+                          ) : (
+                            <>
+                              <LucideMail className="mr-2 h-4 w-4" />
+                              Send Test Email
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {!isResendApiKeySet && (
+                        <p className="text-sm text-muted-foreground">
+                          You need to set up a Resend API key before testing email functionality.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </MainLayout>

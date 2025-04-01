@@ -1,0 +1,76 @@
+services:
+  # PostgreSQL database - same as production
+  postgres:
+    image: postgres:15
+    container_name: atlas-postgres-dev
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: atlas
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - atlas-dev-network
+
+  # ATLAS application - development configuration
+  atlas:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: atlas-app-dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/atlas?schema=public
+      - JWT_SECRET=dev-jwt-secret-not-for-production
+      - JWT_EXPIRES_IN=7d
+      - NEXTAUTH_SECRET=dev-nextauth-secret-not-for-production
+      - NEXTAUTH_URL=http://localhost:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - NEXT_DISABLE_ESLINT=1
+      - DB_HOST=postgres
+      - RESEND_API_KEY=${RESEND_API_KEY:-re_placeholder_for_dev_only}
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@example.com}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-support@example.com}
+    volumes:
+      # Mount for local development
+      - ./:/app
+      # Exclude node_modules from the volume mapping
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - atlas-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# Define a custom network for isolation - development specific
+networks:
+  atlas-dev-network:
+    driver: bridge
+
+# Define named volumes for data persistence - development specific
+volumes:
+  postgres-dev-data:
+    name: atlas-postgres-dev-data 

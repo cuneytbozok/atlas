@@ -230,7 +230,20 @@ export default function ProjectsPage() {
           ) : projects.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground mb-4">No projects found</p>
-              <Button onClick={() => setIsDialogOpen(true)}>Create Your First Project</Button>
+              <Button 
+                onClick={() => setIsDialogOpen(true)}
+                disabled={isCheckingApiKey || hasApiKey === false}
+              >
+                Create Your First Project
+              </Button>
+              {hasApiKey === false && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  An OpenAI API key is required to create projects. 
+                  <Button variant="link" asChild className="h-auto p-0 ml-1">
+                    <Link href="/admin/settings">Configure API Key</Link>
+                  </Button>
+                </p>
+              )}
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className="text-center py-12">

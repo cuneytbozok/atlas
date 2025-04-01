@@ -259,9 +259,97 @@ export class SettingsService {
 
   /**
    * Get the OpenAI Admin API key
-   * @returns The Admin API key, or null if not set
+   * @returns The API key (decrypted), or null if not set
    */
   static async getOpenAIAdminApiKey(): Promise<string | null> {
     return this.getSetting('openai.admin.api.key');
+  }
+
+  /**
+   * Delete the OpenAI Admin API key
+   * @returns True if deleted successfully, false otherwise
+   */
+  static async deleteOpenAIAdminApiKey(): Promise<boolean> {
+    return this.deleteSetting('openai.admin.api.key');
+  }
+  
+  /**
+   * Set the Resend API key for email functionality
+   * @param apiKey - The Resend API key
+   * @param createdBy - Optional user ID of who set the key
+   * @returns The created or updated setting
+   */
+  static async setResendApiKey(apiKey: string, createdBy?: string): Promise<AppSetting | null> {
+    return this.setSetting(
+      'email.resend.api.key',
+      apiKey,
+      true, // Always encrypt API keys
+      createdBy,
+      'Resend API Key for sending emails'
+    );
+  }
+
+  /**
+   * Get the Resend API key
+   * @returns The API key (decrypted), or null if not set
+   */
+  static async getResendApiKey(): Promise<string | null> {
+    return this.getSetting('email.resend.api.key');
+  }
+
+  /**
+   * Delete the Resend API key
+   * @returns True if deleted successfully, false otherwise
+   */
+  static async deleteResendApiKey(): Promise<boolean> {
+    return this.deleteSetting('email.resend.api.key');
+  }
+  
+  /**
+   * Set the email from address
+   * @param email - The email address to use as sender
+   * @param createdBy - Optional user ID of who set the email
+   * @returns The created or updated setting
+   */
+  static async setEmailFrom(email: string, createdBy?: string): Promise<AppSetting | null> {
+    return this.setSetting(
+      'email.from',
+      email,
+      false, // No need to encrypt email addresses
+      createdBy,
+      'From email address for outgoing emails'
+    );
+  }
+
+  /**
+   * Get the email from address
+   * @returns The email address, or null if not set
+   */
+  static async getEmailFrom(): Promise<string | null> {
+    return this.getSetting('email.from');
+  }
+  
+  /**
+   * Set the email reply-to address
+   * @param email - The email address to use for replies
+   * @param createdBy - Optional user ID of who set the email
+   * @returns The created or updated setting
+   */
+  static async setEmailReplyTo(email: string, createdBy?: string): Promise<AppSetting | null> {
+    return this.setSetting(
+      'email.replyTo',
+      email,
+      false, // No need to encrypt email addresses
+      createdBy,
+      'Reply-to email address for outgoing emails'
+    );
+  }
+
+  /**
+   * Get the email reply-to address
+   * @returns The email address, or null if not set
+   */
+  static async getEmailReplyTo(): Promise<string | null> {
+    return this.getSetting('email.replyTo');
   }
 } 

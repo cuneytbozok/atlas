@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { format, subDays } from "date-fns";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
@@ -118,7 +118,7 @@ interface TokenUsageStats {
   tokenFieldsExist?: boolean;
 }
 
-export default function InsightsPage() {
+function InsightsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, hasRole } = useAuth();
@@ -1274,6 +1274,28 @@ export default function InsightsPage() {
         </Tabs>
       </div>
     </MainLayout>
+  );
+}
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={
+      <MainLayout>
+        <div className="container py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Insights Dashboard</CardTitle>
+              <CardDescription>Loading analytics data...</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[500px] flex items-center justify-center">
+              <p className="text-muted-foreground text-lg">Loading insights dashboard...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    }>
+      <InsightsContent />
+    </Suspense>
   );
 }
 

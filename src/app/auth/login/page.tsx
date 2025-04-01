@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, Suspense } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LucideAlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,9 +23,9 @@ export default function LoginPage() {
 
   // Check for error or success messages in URL params
   useEffect(() => {
-    const errorParam = searchParams.get("error");
-    const successParam = searchParams.get("success");
-    const registeredParam = searchParams.get("registered");
+    const errorParam = searchParams?.get("error");
+    const successParam = searchParams?.get("success");
+    const registeredParam = searchParams?.get("registered");
 
     if (errorParam) {
       switch (errorParam) {
@@ -187,5 +187,27 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold">Sign in to ATLAS</CardTitle>
+            <CardDescription>Loading...</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-40 flex items-center justify-center">
+              <p className="text-muted-foreground">Loading login form...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 } 
